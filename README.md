@@ -17,23 +17,27 @@ Təmir ustalarının, prarabların və obyektlərin idarəetmə tətbiqi. BRD v0
 | `config.js` | Server ünvanı (`API_URL`) |
 | `assets/` | Kod, stil, tərcümələr |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Chrome-da "tətbiq kimi" açılış |
-
-Server kodu (`Code.gs`, `appsscript.json`) bu repo-da saxlanmır. Onu Apps Script redaktoruna əl ilə köçürün.
+| `server/Code.gs` | Server kodu (Google Apps Script) |
 
 ## Quraşdırma
 
-### 1. Google Sheet və server
+### 1. Server (telefondan da olur)
 
-1. Google Drive-da boş Google Sheet yaradın. Adı: `Ustabaşı`.
-2. **Extensions → Apps Script** açın.
-3. `Code.gs` faylının bütün məzmununu redaktora yapışdırın.
-4. **Project Settings → Show "appsscript.json"** seçin. `appsscript.json` məzmununu yapışdırın.
-5. `Code.gs`-in əvvəlində `ADMIN_NAME`, `ADMIN_PHONE`, `ADMIN_PIN` dəyərlərini yazın.
-6. Funksiya siyahısında `setup` seçin, **Run** basın, icazələri verin.
-7. **Deploy → New deployment → Web app**:
+1. Chrome-da [script.google.com](https://script.google.com) açın → **New project** (və ya yaratdığınız layihəni açın).
+   Redaktor telefonda düzgün açılmırsa: Chrome menyusu → **Desktop site** (Kompüter versiyası).
+2. Kodu kopyalayın: [server/Code.gs (raw)](https://raw.githubusercontent.com/aqil268-spec/ustabasi/main/server/Code.gs) → səhifəyə uzun basın → **Hamısını seç** → **Kopyala**.
+3. Redaktorda `Code.gs` içindəki hər şeyi silin, kodu yapışdırın.
+4. Kodun əvvəlində 3 sətri dəyişin: `ADMIN_NAME`, `ADMIN_PHONE`, `ADMIN_PIN`. **Save** basın.
+5. Yuxarıda funksiya siyahısında `setup` seçin → **Run**.
+   İcazə pəncərəsi: **Review permissions** → hesabınız → **Advanced** → **Go to … (unsafe)** → **Allow**.
+   `setup` "Ustabaşı — data" adlı Google Sheet-i özü yaradır. Linki **Execution log**-da görünür.
+6. **Deploy → New deployment** → ⚙ → **Web app**:
    - Execute as: **Me**
    - Who has access: **Anyone**
-8. **Web app URL**-ni kopyalayın (`…/exec` ilə bitir).
+7. **Deploy** basın və **Web app URL**-ni kopyalayın (`…/exec` ilə bitir).
+
+`appsscript.json` lazım deyil. Saat qurşağı kodun içindədir (Asia/Baku).
+Kod Sheet-ə bağlı layihədə (Sheet → Extensions → Apps Script) də işləyir.
 
 ### 2. Tətbiq
 
@@ -59,7 +63,7 @@ Apps Script → **Triggers → Add trigger**:
 ## Kodu dəyişəndə
 
 - Ön tərəf: faylları dəyişin, `index.html`-də `?v=` versiyasını və `sw.js`-də `CACHE` adını artırın.
-- Server: `Code.gs`-i dəyişin → **Deploy → Manage deployments → Edit → New version**. URL dəyişmir.
+- Server: `server/Code.gs`-i Apps Script-ə yenidən köçürün → **Deploy → Manage deployments → Edit (qələm) → Version: New version → Deploy**. URL dəyişmir.
 
 ## Hesablama qaydaları (qısa)
 
