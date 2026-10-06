@@ -3,7 +3,8 @@
   'use strict';
   const C = window.UBCore;
   const { t, esc, icon, logo, API, LS } = C;
-  const VERSION = '0.1.1';
+  const VERSION = '0.2.0';
+  const SNAP = 'ub_snap';
 
   const UB = window.UB = { data: null, idx: {}, user: null, screens: { admin: {}, foreman: {}, common: {} }, version: VERSION };
 
@@ -16,13 +17,66 @@
     d.settings = d.settings || {};
   }
 
+  function setData(d, at) { UB.data = d; UB.user = d.user; indexData(d); UB.loadedAt = at || Date.now(); }
+
   async function load() {
     const d = await API.call('bootstrap', {});
-    UB.data = d;
-    UB.user = d.user;
-    indexData(d);
+    setData(d);
+    saveSnap(d);
     return d;
   }
+
+  // Son data telefonda saxlanır: tətbiq dərhal açılır, təzə data arxa planda gəlir.
+  function saveSnap(d) {
+    try { localStorage.setItem(SNAP, JSON.stringify({ v: VERSION, t: API.token(), at: Date.now(), d })); }
+    catch (e) { clearSnap(); }
+  }
+  function readSnap() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SNAP) || 'null');
+      if (s && s.v === VERSION && s.t && s.t === API.token() && s.d && s.d.user) return s;
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+  function clearSnap() { try { localStorage.removeItem(SNAP); } catch (e) { /* ignore */ } }
+
+  /** İstifadəçi forma doldurmursa, ekranı yenidən çəkmək olar. */
+  function canRerender() {
+    if (document.querySelector('dialog[open]')) return false;
+    const a = document.activeElement;
+    if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return false;
+    const r = parseRoute();
+    return r.parts.length <= 1 && ['home', 'workers', 'approvals', 'advances', 'sites', 'foremen', 'work', 'more'].indexOf(r.name) >= 0;
+  }
+
+  function syncBadge(state) {
+    let el = document.getElementById('ub-sync');
+    if (!state) { if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement('button');
+      el.type = 'button'; el.id = 'ub-sync'; el.className = 'sync';
+      el.addEventListener('click', () => { if (el.dataset.s === 'offline') sync(); });
+      document.body.appendChild(el);
+    }
+    el.dataset.s = state;
+    el.innerHTML = state === 'offline' ? icon('refresh', 14) + '<span>' + esc(t('offline_snapshot')) + '</span>' : '<i class="spin"></i><span>' + esc(t('updating')) + '</span>';
+  }
+
+  /** Arxa planda təzə data; ekran yalnız istifadəçiyə mane olmayanda yenidən çəkilir. */
+  let syncing = null;
+  function sync() {
+    if (syncing) return syncing;
+    syncBadge('busy');
+    syncing = load().then(() => {
+      syncBadge(false);
+      if (canRerender()) render();
+    }).catch(e => {
+      if (e.code === 'auth') { syncBadge(false); return logout(true); }
+      syncBadge('offline');
+    }).finally(() => { syncing = null; });
+    return syncing;
+  }
+  UB.sync = sync;
 
   UB.refresh = async function (silent) {
     try { await load(); render(); }
@@ -174,6 +228,7 @@
     if (!silent) { const ok = await C.confirmDlg(t('logout_q'), t('logout')); if (!ok) return; }
     API.call('logout', {}).catch(() => {});
     LS.set('ub_token', null);
+    clearSnap(); syncBadge(false);
     UB.data = null; UB.user = null;
     location.hash = '#/';
     renderLogin();
@@ -183,13 +238,12 @@
   // ------------------------------------------------------------ login
   function renderLogin(msg) {
     const root = document.getElementById('app');
-    const needApi = !C.CFG.API_URL;
+    API.warm(); // Google serveri soyuq başlayır — PIN yazılana qədər oyansın
     root.innerHTML = '<div class="login"><form class="login-box" id="login-form" autocomplete="on">' +
       '<div class="login-brand">' + logo(96, { animate: true }) + '<div class="name">Ustabaşı</div><div class="muted">' + esc(t('tagline')) + '</div></div>' +
       '<div class="row" style="justify-content:center">' + langSeg() + '</div>' +
       '<label class="field"><span>' + esc(t('phone')) + '</span><input name="phone" type="tel" inputmode="tel" autocomplete="username" placeholder="994 50 000 00 00" required></label>' +
       '<label class="field"><span>' + esc(t('pin')) + '</span><input name="pin" type="password" inputmode="numeric" autocomplete="current-password" minlength="4" maxlength="8" required></label>' +
-      (needApi ? '<details' + (C.API.url() ? '' : ' open') + '><summary class="small muted" style="cursor:pointer;min-height:32px">' + esc(t('server_url')) + '</summary><label class="field" style="margin-top:8px"><span class="tiny">' + esc(t('server_url_hint')) + '</span><input name="api" type="text" inputmode="url" autocapitalize="off" spellcheck="false" value="' + esc(LS.get('ub_api') || '') + '" placeholder="https://script.google.com/macros/s/…/exec"></label></details>' : '') +
       (msg ? '<div class="err" role="alert">' + esc(msg) + '</div>' : '') +
       '<button type="submit" class="btn primary big block">' + esc(t('login')) + '</button>' +
       '<div class="tiny dim" style="text-align:center">v' + VERSION + '</div></form></div>';
@@ -197,7 +251,6 @@
     form.addEventListener('submit', async e => {
       e.preventDefault();
       const f = C.formData(form);
-      if (needApi && f.api !== undefined) LS.set('ub_api', f.api || null);
       const btn = form.querySelector('[type=submit]');
       try {
         await C.busy(btn, async () => {
@@ -232,8 +285,9 @@
       '<label class="field"><span>' + esc(t('old_pin')) + '</span><input name="oldPin" type="password" inputmode="numeric" required></label>' +
       '<label class="field"><span>' + esc(t('new_pin')) + '</span><input name="newPin" type="password" inputmode="numeric" pattern="\\d{4,8}" required></label></div>' +
       '<div><button class="btn primary" type="submit">' + esc(t('save')) + '</button></div></form></section>' +
-      (!C.CFG.API_URL ? '<section class="card"><h2>' + esc(t('server_url')) + '</h2><form class="form" id="api-form"><label class="field"><span>' + esc(t('server_url_hint')) + '</span><input name="api" type="text" inputmode="url" autocapitalize="off" spellcheck="false" value="' + esc(LS.get('ub_api') || '') + '"></label><div><button class="btn" type="submit">' + esc(t('save')) + '</button></div></form></section>' : '') +
-      '<section class="card"><button type="button" class="btn danger" data-g="logout">' + icon('logout', 16) + esc(t('logout')) + '</button><div class="tiny dim">Ustabaşı v' + VERSION + '</div></section>' +
+      '<section class="card"><h2>' + esc(t('diag_title')) + '</h2><div class="small muted">' + esc(t('diag_hint')) + '</div><div id="diag">' + diagLast() + '</div>' +
+      '<div><button type="button" class="btn" id="diag-run">' + icon('clock', 16) + esc(t('diag_run')) + '</button></div></section>' +
+      '<section class="card"><button type="button" class="btn danger" data-g="logout">' + icon('logout', 16) + esc(t('logout')) + '</button><div class="tiny dim">Ustabaşı v' + VERSION + (UB.data.version ? ' · server v' + esc(UB.data.version) : '') + '</div></section>' +
       '</div>' +
       (admin ? '<div class="col-2"><section class="card"><h2>' + esc(t('app_settings')) + '</h2><form class="form" id="set-form"><div class="grid2">' +
         '<label class="field"><span>' + esc(t('s_link_ttl')) + '</span><input name="linkTtlMin" type="number" min="3" max="60" value="' + esc(s.linkTtlMin) + '"></label>' +
@@ -251,8 +305,7 @@
       const f = C.formData(e.target);
       await C.busy(e.target.querySelector('button'), () => API.call('changePin', f)).then(() => { e.target.reset(); C.toast(t('saved')); }).catch(() => {});
     });
-    const apiForm = view.querySelector('#api-form');
-    if (apiForm) apiForm.addEventListener('submit', e => { e.preventDefault(); LS.set('ub_api', C.formData(e.target).api || null); C.toast(t('saved')); });
+    view.querySelector('#diag-run').addEventListener('click', e => runDiag(view.querySelector('#diag'), e.currentTarget));
     const sf = view.querySelector('#set-form');
     if (sf) sf.addEventListener('submit', async e => {
       e.preventDefault();
@@ -260,6 +313,34 @@
       await C.busy(sf.querySelector('button'), async () => { UB.data.settings = await API.call('saveSettings', { settings: f }); C.toast(t('saved')); }).catch(() => {});
     });
   };
+
+  // ------------------------------------------------------------ speed diagnostics
+  const ACT = { bootstrap: 'diag_a_bootstrap', ping: 'diag_a_ping', login: 'diag_a_login', report: 'diag_a_report', calcPayroll: 'nav_payroll', setPlanDays: 'plan_days', createToken: 'create_link', saveWorkEntry: 'nav_work', tokenInfo: 'link', tokenConfirm: 'link', approveWork: 'approve', approveAdvance: 'approve', approveAttendance: 'approve' };
+  function diagLast() {
+    const L = API.log.slice(0, 8);
+    if (!L.length) return '';
+    return '<div class="table-wrap"><table class="t"><thead><tr><th>' + esc(t('diag_last')) + '</th><th class="num">' + esc(t('diag_total')) + '</th><th class="num">' + esc(t('diag_server')) + '</th><th class="num">' + esc(t('diag_reads')) + '</th><th class="num">KB</th></tr></thead><tbody>' +
+      L.map(r => '<tr><td>' + esc(ACT[r.action] ? t(ACT[r.action]) : r.action) + '</td><td class="num">' + ms(r.ms) + '</td><td class="num">' + (r.server === undefined || r.server === null ? '—' : ms(r.server)) + '</td><td class="num">' + (r.reads === null ? '—' : r.reads + ' / ' + r.cached) + '</td><td class="num">' + C.num(r.kb, 1) + '</td></tr>').join('') +
+      '</tbody></table></div><div class="tiny muted">' + esc(t('diag_reads_note')) + '</div>';
+  }
+  function ms(v) { v = C.n(v); return v >= 1000 ? C.num(v / 1000, 1) + ' s' : Math.round(v) + ' ms'; }
+  async function runDiag(box, btn) {
+    await C.busy(btn, async () => {
+      await API.raw({ action: 'ping' }); const p1 = API.log[0];
+      await API.raw({ action: 'ping' }); const p2 = API.log[0];
+      await load(); const b = API.log[0];
+      const net = Math.max(0, b.ms - C.n(b.server));
+      const notes = [];
+      if (p1.ms > 2500) notes.push(t('diag_n_cold'));
+      if (b.reads > 3) notes.push(t('diag_n_cache'));
+      if (p2.ms > 2000 || net > 2500) notes.push(t('diag_n_net'));
+      if (!notes.length) notes.push(t('diag_n_ok'));
+      const row = (k, v) => '<span>' + esc(t(k)) + '</span><span class="mono">' + v + '</span>';
+      box.innerHTML = '<div class="kv wide">' + row('diag_ping_cold', ms(p1.ms)) + row('diag_ping_warm', ms(p2.ms)) + row('diag_boot', ms(b.ms)) +
+        row('diag_server', ms(b.server)) + row('diag_net', ms(net)) + row('diag_reads', esc(b.reads + ' / ' + b.cached)) + row('diag_size', C.num(b.kb, 1) + ' KB') + '</div>' +
+        notes.map(n => '<div class="notice">' + esc(n) + '</div>').join('') + diagLast();
+    }).catch(() => {});
+  }
 
   // ------------------------------------------------------------ print
   UB.screens.common.print = async function (view, route) {
@@ -331,10 +412,18 @@
     C.setLang(C.getLang());
     const root = document.getElementById('app');
     if (!API.token()) return renderLogin();
+    const snap = readSnap();
+    if (snap) {
+      // Dərhal: son yadda saxlanan data ilə aç, təzəsini arxa planda gətir.
+      setData(snap.d, snap.at);
+      render();
+      sync();
+      return;
+    }
     root.innerHTML = '<div class="loading" style="min-height:100vh"><i></i>' + esc(t('loading')) + '</div>';
     try { await load(); render(); }
     catch (e) {
-      if (e.code === 'auth') { LS.set('ub_token', null); return renderLogin(); }
+      if (e.code === 'auth') { LS.set('ub_token', null); clearSnap(); return renderLogin(); }
       renderLogin(C.errorText(e));
     }
   }
@@ -343,9 +432,9 @@
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
   }
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible' || !UB.data || document.querySelector('dialog[open]')) return;
-    const r = parseRoute();
-    if (r.parts.length <= 1 && ['home', 'workers', 'approvals', 'advances', 'sites', 'foremen'].indexOf(r.name) >= 0) UB.refresh(true);
+    // Tətbiqə qayıdanda (1 dəqiqədən çox keçibsə) data arxa planda yenilənir.
+    if (document.visibilityState !== 'visible' || !UB.data || Date.now() - (UB.loadedAt || 0) < 60000) return;
+    sync();
   });
 
   UB.boot = boot;

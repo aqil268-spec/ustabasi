@@ -1,5 +1,5 @@
 /**
- * Ustabaşı — server (Google Apps Script), v0.1.1
+ * Ustabaşı — server (Google Apps Script), v0.2.0
  * Ayrıca (standalone) layihədə və Sheet-ə bağlı layihədə işləyir.
  * Sheet yoxdursa, setup() "Ustabaşı — data" adlı Sheet-i özü yaradır.
  *
@@ -8,6 +8,16 @@
  *  2. Funksiya siyahısında setup seçin və "Run" basın (icazələri verin).
  *  3. Deploy → New deployment → Web app → Execute as: Me, Who has access: Anyone.
  *  4. Web app URL-ni tətbiqin config.js faylına yazın.
+ *
+ * Yeni versiyanı köçürəndə: kodu yapışdırın → Save → setup → Run (təkrar işə salmaq təhlükəsizdir) →
+ * Deploy → Manage deployments → Edit → Version: New version → Deploy. URL dəyişmir.
+ *
+ * Xidmət funksiyaları (redaktorda seçib "Run"):
+ *  setup          — quraşdırma / yeniləmə, avtomatik işləri (trigger) qurur
+ *  setAdminLogin  — admin telefonu və PIN-i aşağıdakı ADMIN_* dəyərlərinə görə yazır
+ *  clearCache     — keşi sıfırlayır (Sheet-də əl ilə dəyişiklikdən sonra tətbiq köhnəni göstərirsə)
+ *  cleanup        — köhnə sessiya və linkləri silir, köhnə qeydləri arxivə köçürür (hər gecə avtomatik)
+ *  dailyBackup    — Sheet-in ehtiyat surəti (hər gecə avtomatik)
  */
 
 // ---- 1. Birinci admin (setup-dan əvvəl dəyişin) ----
@@ -226,85 +236,269 @@ function splitCostByForeman(lines, attendance, sites, month) {
 function indexBy(arr, key) { const o = {}; (arr || []).forEach(x => { o[x[key]] = x; }); return o; }
 
 // ======================================================================
-// 4. Sheets qatı
+// 4. Sheets qatı (keşli)
 // ======================================================================
+// Sürət üçün: hər vərəq CacheService-də saxlanır. Hər vərəqin versiyası var
+// (Script Properties: ver_<Vərəq>). Yazan sorğu Sheet-i yazır, flush edir, sonra
+// versiyanı dəyişir — köhnə keş özü etibarsız olur. Sheet-də əl ilə edilən
+// dəyişikliklər onSheetChange trigger-i ilə bütün keşi yeniləyir (epoch).
+// Sətri dəyişməzdən/silməzdən əvvəl həmin sətir Sheet-dən təzə oxunur və
+// yoxlanır — keş köhnə olsa belə, səhv sətrə yazılmır.
 
+const VERSION = '0.2.0';
 const TZ = 'Asia/Baku';
+const CACHE_TTL = 21600;      // 6 saat (CacheService maksimumu)
+const CHUNK = 30000;          // 1 keş açarı < 100 KB (UTF-8-də də)
+const MAX_CHUNKS = 60;
+const FIRST_CHUNKS = 3;
+const NO_CACHE = { AuditLog: 1 };
+// Sətrin "kimliyi": dəyişiklikdən əvvəl düzgün sətir olduğunu yoxlamaq üçün.
+const ROW_KEYS = { WorkShares: ['entryId', 'workerId'], Payroll: ['month', 'personType', 'personId'] };
+
 function tz() { return TZ; }
-function nowIso() { return Utilities.formatDate(new Date(), tz(), "yyyy-MM-dd'T'HH:mm:ss"); }
-function todayStr() { return Utilities.formatDate(new Date(), tz(), 'yyyy-MM-dd'); }
-function addMinutesIso(min) { return Utilities.formatDate(new Date(Date.now() + min * 60000), tz(), "yyyy-MM-dd'T'HH:mm:ss"); }
+function nowIso() { return Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd'T'HH:mm:ss"); }
+function todayStr() { return Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd'); }
+function addMinutesIso(min) { return Utilities.formatDate(new Date(Date.now() + min * 60000), TZ, "yyyy-MM-dd'T'HH:mm:ss"); }
+function daysAgo(n) { return Utilities.formatDate(new Date(Date.now() - n * 86400000), TZ, 'yyyy-MM-dd'); }
 function uid(prefix) { return prefix + Utilities.getUuid().replace(/-/g, '').slice(0, 10); }
 
-function normCell(v) {
+function normCell(v, h) {
+  let s;
   if (v instanceof Date) {
-    if (v.getFullYear() < 1901) return Utilities.formatDate(v, tz(), 'HH:mm');
-    return Utilities.formatDate(v, tz(), "yyyy-MM-dd'T'HH:mm:ss").replace('T00:00:00', '');
+    s = v.getFullYear() < 1901 ? Utilities.formatDate(v, TZ, 'HH:mm') : Utilities.formatDate(v, TZ, "yyyy-MM-dd'T'HH:mm:ss").replace('T00:00:00', '');
+  } else {
+    s = v === null || v === undefined ? '' : String(v);
   }
-  return v === null || v === undefined ? '' : String(v);
+  if (h === 'month') return s.slice(0, 7);
+  if (h === 'date' || h === 'contractDate') return s.slice(0, 10);
+  return s;
 }
 
+/** Script Properties: 1 sorğuda 1 dəfə oxunur. */
+const P = (function () {
+  let all = null;
+  function load() { if (!all) all = PropertiesService.getScriptProperties().getProperties() || {}; return all; }
+  return {
+    get(k) { return load()[k] || null; },
+    set(obj) { PropertiesService.getScriptProperties().setProperties(obj, false); Object.assign(load(), obj); },
+    fresh(k) { return PropertiesService.getScriptProperties().getProperty(k) || null; },
+    reset() { all = null; }
+  };
+})();
+
 const DB = (function () {
-  const cache = {};
-  let bookObj = null;
+  let mem = {}, meta = {}, sheets = {}, dirty = {}, bookObj = null, cacheObj = null;
+  let st = { sheetReads: 0, cacheHits: 0 };
+
+  function cache() { if (!cacheObj) cacheObj = CacheService.getScriptCache(); return cacheObj; }
   function book() {
     if (bookObj) return bookObj;
-    const id = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+    const id = P.get('SHEET_ID');
     if (id) bookObj = SpreadsheetApp.openById(id);
     else { try { bookObj = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) { bookObj = null; } }
     if (!bookObj) throw new Error('not_setup');
     return bookObj;
   }
   function sheet(name) {
+    if (sheets[name]) return sheets[name];
     const sh = book().getSheetByName(name);
-    if (!sh) throw new Error('Sheet yoxdur: ' + name + '. setup() funksiyasını işə salın.');
+    if (!sh) throw new Error('not_setup');
+    sheets[name] = sh;
     return sh;
   }
-  function all(name) {
-    if (cache[name]) return cache[name];
-    const sh = sheet(name), head = SCHEMA[name];
-    const last = sh.getLastRow();
-    const rows = [];
-    if (last >= 2) {
-      const vals = sh.getRange(2, 1, last - 1, head.length).getValues();
-      vals.forEach((r, i) => {
-        if (r.every(v => v === '' || v === null)) return;
-        const o = { _row: i + 2 };
-        head.forEach((h, j) => { o[h] = normCell(r[j]); });
-        rows.push(o);
-      });
-    }
-    cache[name] = rows;
-    return rows;
+  function ver(name) { return P.get('ver_' + name) || '0'; }
+  function keyOf(name, v, i) { return 'd:' + name + ':' + v + ':' + i; }
+  function key(name, i) { return keyOf(name, ver(name), i); }
+  function ident(name, o) { return (ROW_KEYS[name] || [SCHEMA[name][0]]).map(k => String(o[k] === undefined || o[k] === null ? '' : o[k])).join('\u0001'); }
+
+  function toObj(name, r) {
+    const head = SCHEMA[name], o = {};
+    for (let j = 0; j < head.length; j++) o[head[j]] = normCell(r[j], head[j]);
+    return o;
   }
+  function fromValues(name, values) {
+    const head = SCHEMA[name], rows = [];
+    for (let i = 1; i < values.length; i++) {
+      const r = values[i];
+      let empty = true;
+      for (let j = 0; j < head.length; j++) { if (r[j] !== '' && r[j] !== null && r[j] !== undefined) { empty = false; break; } }
+      if (empty) continue;
+      const o = toObj(name, r);
+      o._row = i + 1;
+      rows.push(o);
+    }
+    return { rows, last: Math.max(1, values.length) };
+  }
+  function readSheet(name) {
+    st.sheetReads++;
+    return fromValues(name, sheet(name).getDataRange().getValues());
+  }
+  function pack(name, m) {
+    const head = SCHEMA[name];
+    return JSON.stringify({ last: m.last, rows: m.rows.map(o => [o._row].concat(head.map(h => o[h]))) });
+  }
+  function unpack(name, s) {
+    const head = SCHEMA[name], d = JSON.parse(s);
+    return { last: d.last, rows: d.rows.map(a => { const o = { _row: a[0] }; for (let j = 0; j < head.length; j++) o[head[j]] = a[j + 1]; return o; }) };
+  }
+  /** Keşə yazır. Hər hissənin əvvəlində eyni 6 simvolluq "nonce" var — eyni anda yazan iki sorğunun hissələri qarışmasın. */
+  function store(name, m) {
+    if (NO_CACHE[name]) return 0;
+    try {
+      const s = pack(name, m);
+      const n = Math.max(1, Math.ceil(s.length / CHUNK));
+      if (n > MAX_CHUNKS) return 0;
+      const nonce = Utilities.getUuid().slice(0, 6);
+      const parts = {};
+      for (let i = 0; i < n; i++) parts[key(name, i)] = nonce + (i === 0 ? n + '|' : '') + s.slice(i * CHUNK, (i + 1) * CHUNK);
+      cache().putAll(parts, CACHE_TTL);
+      if (meta[name]) meta[name].chunks = n;
+      return n;
+    } catch (e) { return 0; /* keş məcburi deyil */ }
+  }
+  function setMem(name, m, chunks) { mem[name] = m.rows; meta[name] = { last: m.last, complete: true, blind: false, chunks: chunks || 0 }; }
+  function chunkCount(c0) { const bar = c0.indexOf('|'); return bar > 6 ? Number(c0.slice(6, bar)) : 0; }
+
+  /** Bir neçə vərəqi birlikdə yükləyir: əvvəl keşdən (1–2 sorğu), olmayanı Sheet-dən. */
+  function load(names) {
+    const need = [];
+    names.forEach(n => { if (!mem[n] && need.indexOf(n) < 0 && SCHEMA[n]) need.push(n); });
+    if (!need.length) return;
+    const fromCache = need.filter(n => !NO_CACHE[n] && !dirty[n]);
+    let got = {};
+    if (fromCache.length) {
+      const keys = [];
+      fromCache.forEach(n => { for (let i = 0; i < FIRST_CHUNKS; i++) keys.push(key(n, i)); });
+      try { got = cache().getAll(keys) || {}; } catch (e) { got = {}; }
+      const more = [];
+      fromCache.forEach(n => {
+        const c0 = got[key(n, 0)];
+        if (typeof c0 !== 'string') return;
+        const cnt = chunkCount(c0);
+        for (let i = FIRST_CHUNKS; i < cnt; i++) more.push(key(n, i));
+      });
+      if (more.length) { try { Object.assign(got, cache().getAll(more) || {}); } catch (e) { /* ignore */ } }
+    }
+    if (need.some(n => dirty[n])) SpreadsheetApp.flush();
+    need.forEach(n => {
+      const c0 = got[key(n, 0)];
+      if (fromCache.indexOf(n) >= 0 && typeof c0 === 'string') {
+        const cnt = chunkCount(c0), nonce = c0.slice(0, 6);
+        let s = c0.slice(c0.indexOf('|') + 1), ok = cnt > 0;
+        for (let i = 1; ok && i < cnt; i++) {
+          const c = got[key(n, i)];
+          if (typeof c !== 'string' || c.slice(0, 6) !== nonce) ok = false; else s += c.slice(6);
+        }
+        if (ok) { try { setMem(n, unpack(n, s), cnt); st.cacheHits++; return; } catch (e) { /* oxunmadı — Sheet-dən */ } }
+      }
+      const m = readSheet(n);
+      setMem(n, m, 0);
+      if (!dirty[n]) store(n, m);
+    });
+  }
+
+  function all(name) { if (!mem[name]) load([name]); return mem[name]; }
+  function find(name, k, value) { return all(name).find(r => r[k] === value) || null; }
+
   function insert(name, obj) {
-    const sh = sheet(name), head = SCHEMA[name];
+    const head = SCHEMA[name];
     const vals = head.map(h => (obj[h] === undefined || obj[h] === null) ? '' : String(obj[h]));
-    const row = sh.getLastRow() + 1;
-    const rg = sh.getRange(row, 1, 1, head.length);
-    rg.setNumberFormat('@');
-    rg.setValues([vals]);
-    const stored = { _row: row };
-    head.forEach((h, j) => { stored[h] = vals[j]; });
-    if (cache[name]) cache[name].push(stored);
+    sheet(name).appendRow(vals);
+    dirty[name] = true;
+    const stored = {};
+    head.forEach((h, j) => { stored[h] = normCell(vals[j], h); });
+    if (meta[name] && meta[name].complete) {
+      meta[name].last += 1;
+      stored._row = meta[name].last;
+      mem[name].push(stored);
+    } else {
+      meta[name] = meta[name] || { complete: false };
+      meta[name].blind = true;
+      stored._row = 0;
+    }
     return stored;
   }
+
+  /**
+   * Dəyişiklikdən əvvəl sətri Sheet-dən təzə oxuyur (1 oxu). Sətir yerindədirsə — onu qaytarır.
+   * Yeri dəyişibsə (əl ilə sıralama/silmə) — vərəqi təzədən oxuyur, sətri kimliyinə görə tapır.
+   */
+  function locate(name, rowObj) {
+    const head = SCHEMA[name], sh = sheet(name), want = ident(name, rowObj);
+    if (rowObj._row > 1) {
+      st.sheetReads++;
+      const cur = toObj(name, sh.getRange(rowObj._row, 1, 1, head.length).getValues()[0]);
+      if (ident(name, cur) === want) {
+        // Sətir yerindədir, amma dəyərləri keşdəkindən fərqlidirsə — Sheet əl ilə dəyişib: keşə geri yazmırıq.
+        if (head.some(h => String(cur[h]) !== String(rowObj[h] === undefined || rowObj[h] === null ? '' : rowObj[h]))) {
+          meta[name] = Object.assign(meta[name] || {}, { blind: true });
+        }
+        return { row: rowObj._row, cur };
+      }
+    }
+    if (dirty[name]) SpreadsheetApp.flush();
+    const m = readSheet(name);
+    const hit = m.rows.find(r => ident(name, r) === want);
+    // Keşdəki mövqelər köhnədir: yaddaşdakı sətirləri yenilə, keşə geri yazma.
+    if (mem[name]) {
+      const pos = {};
+      m.rows.forEach(r => { pos[ident(name, r)] = r._row; });
+      mem[name].forEach(x => { x._row = pos[ident(name, x)] || 0; });
+    }
+    meta[name] = Object.assign(meta[name] || {}, { blind: true, last: m.last });
+    if (!hit) throw new Error('stale_row');
+    rowObj._row = hit._row;
+    const cur = {}; head.forEach(h => { cur[h] = hit[h]; });
+    return { row: hit._row, cur };
+  }
+
   function update(name, rowObj, patch) {
-    const sh = sheet(name), head = SCHEMA[name];
-    const vals = head.map(h => (h in patch) ? patch[h] : rowObj[h]);
-    const rg = sh.getRange(rowObj._row, 1, 1, head.length);
-    rg.setNumberFormat('@');
-    rg.setValues([vals.map(v => (v === undefined || v === null) ? '' : String(v))]);
-    Object.keys(patch).forEach(k => { rowObj[k] = (patch[k] === undefined || patch[k] === null) ? '' : String(patch[k]); });
+    if (!rowObj) throw new Error('stale_row');
+    const head = SCHEMA[name];
+    const loc = locate(name, rowObj);
+    // Patch-də olmayan xanalar Sheet-dəki təzə dəyərlə yazılır (əl ilə edilən düzəliş itmir).
+    const vals = head.map(h => (h in patch) ? patch[h] : loc.cur[h]).map(v => (v === undefined || v === null) ? '' : String(v));
+    sheet(name).getRange(loc.row, 1, 1, head.length).setNumberFormat('@').setValues([vals]);
+    head.forEach((h, j) => { rowObj[h] = normCell(vals[j], h); });
+    dirty[name] = true;
     return rowObj;
   }
-  function find(name, key, value) { return all(name).find(r => r[key] === value) || null; }
   function remove(name, rowObj) {
-    sheet(name).deleteRow(rowObj._row);
-    delete cache[name];
+    if (!rowObj) throw new Error('stale_row');
+    const r = locate(name, rowObj).row;
+    sheet(name).deleteRow(r);
+    dirty[name] = true;
+    if (mem[name]) {
+      mem[name] = mem[name].filter(x => x !== rowObj && x._row !== r);
+      mem[name].forEach(x => { if (x._row > r) x._row--; });
+      if (meta[name]) meta[name].last = Math.max(1, meta[name].last - 1);
+    }
   }
-  function reset() { Object.keys(cache).forEach(k => { delete cache[k]; }); bookObj = null; }
-  return { all, insert, update, find, remove, book, sheet, reset };
+  /** Vərəq bütövlükdə yenidən yazılıb (məs. təmizləmə) — keş yenilənəcək. */
+  function markDirty(name) { dirty[name] = true; meta[name] = { complete: false, blind: true, chunks: (meta[name] || {}).chunks || 0 }; delete mem[name]; }
+
+  /** Yazılardan sonra: flush, versiyanı dəyiş, köhnə keşi sil, təzə datanı keşə yaz. */
+  function commit() {
+    const names = Object.keys(dirty).filter(n => !NO_CACHE[n]);
+    dirty = {};
+    if (!names.length) { SpreadsheetApp.flush(); return; }
+    SpreadsheetApp.flush();
+    const epoch0 = P.get('epoch'), old = {}, bump = {};
+    names.forEach(n => { old[n] = ver(n); bump['ver_' + n] = Utilities.getUuid().slice(0, 8); });
+    P.set(bump);
+    // Bu arada Sheet əl ilə dəyişibsə (trigger epoch-u dəyişib), köhnə ola biləcək datanı keşə yazmırıq.
+    const safe = P.fresh('epoch') === epoch0;
+    const drop = [];
+    names.forEach(n => {
+      const m = meta[n] || {};
+      for (let i = 0; i < Math.max(1, m.chunks || 0); i++) drop.push(keyOf(n, old[n], i));
+      if (safe && m.complete && !m.blind && mem[n]) store(n, { rows: mem[n], last: m.last });
+    });
+    try { cache().removeAll(drop); } catch (e) { /* ignore */ }
+  }
+  function reset() { mem = {}; meta = {}; sheets = {}; dirty = {}; bookObj = null; st = { sheetReads: 0, cacheHits: 0 }; }
+  function stats() { return { reads: st.sheetReads, cached: st.cacheHits }; }
+  return { all, find, insert, update, remove, load, commit, reset, markDirty, stats, book, sheet };
 })();
 
 function settings() {
@@ -316,13 +510,16 @@ function settings() {
 function audit(user, sheet, rowId, action, details) {
   try {
     DB.insert('AuditLog', { ts: nowIso(), userId: user ? user.id : 'public', sheet, rowId, action, details: details ? JSON.stringify(details).slice(0, 4000) : '' });
-  } catch (e) { /* audit never breaks the request */ }
+  } catch (e) { /* audit sorğunu dayandırmır */ }
 }
 
 // ======================================================================
-// 5. Quraşdırma
+// 5. Quraşdırma və xidmət funksiyaları (redaktordan "Run" ilə)
 // ======================================================================
 
+const HOT_SHEETS = ['Attendance', 'Tokens', 'AuditLog', 'GeoRejects', 'Sessions', 'WorkEntries', 'WorkShares'];
+
+/** İlk quraşdırma və yeniləmə. Təkrar işə salmaq təhlükəsizdir. */
 function setup() {
   const props = PropertiesService.getScriptProperties();
   let book = null;
@@ -331,50 +528,150 @@ function setup() {
   if (!book) { try { book = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) { book = null; } }
   if (!book) book = SpreadsheetApp.create('Ustabaşı — data');
   props.setProperty('SHEET_ID', book.getId());
-  DB.reset();
   if (!props.getProperty('SALT')) props.setProperty('SALT', Utilities.getUuid());
+  P.reset(); DB.reset();
+  try { book.setSpreadsheetTimeZone(TZ); } catch (e) { /* ignore */ }
+
   Object.keys(SCHEMA).forEach(name => {
     let sh = book.getSheetByName(name);
     if (!sh) sh = book.insertSheet(name);
     const head = SCHEMA[name];
     sh.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold');
     sh.setFrozenRows(1);
-    sh.getRange(1, 1, Math.max(sh.getMaxRows(), 2), head.length).setNumberFormat('@');
+    const want = HOT_SHEETS.indexOf(name) >= 0 ? 5000 : 1000;
+    const max = sh.getMaxRows();
+    if (max < want) sh.insertRowsAfter(max, want - max);
+    sh.getRange(1, 1, Math.max(want, max), head.length).setNumberFormat('@');
   });
   book.getSheets().forEach(sh => {
     if (!SCHEMA[sh.getName()] && sh.getLastRow() === 0 && book.getSheets().length > 1) book.deleteSheet(sh);
   });
+  if (!props.getProperty('PHOTO_FOLDER')) props.setProperty('PHOTO_FOLDER', DriveApp.createFolder('Ustabaşı — fotolar').getId());
+  P.reset();
 
   const have = DB.all('Settings').map(r => r.key);
   Object.keys(DEFAULT_SETTINGS).forEach(k => { if (have.indexOf(k) < 0) DB.insert('Settings', { key: k, value: DEFAULT_SETTINGS[k] }); });
-  if (!props.getProperty('PHOTO_FOLDER')) {
-    const folder = DriveApp.createFolder('Ustabaşı — fotolar');
-    props.setProperty('PHOTO_FOLDER', folder.getId());
-  }
   if (!DB.all('Users').some(u => u.role === 'admin')) {
     DB.insert('Users', { id: uid('U'), role: 'admin', name: ADMIN_NAME, phone: cleanPhone(ADMIN_PHONE), pinHash: hashPin(ADMIN_PIN), lang: 'az', status: 'active', created: nowIso() });
   }
   if (!DB.all('WorkTypes').length) {
     SEED_WORK_TYPES.forEach(w => DB.insert('WorkTypes', { id: uid('T'), name: w[0], unit: w[1], bonusType: 'AZN', rateHelper: 0, rateMaster: 0, rateSenior: 0, percent: 0, active: 'yes' }));
   }
-  Logger.log('Hazırdır. Admin telefonu: ' + cleanPhone(ADMIN_PHONE));
+  try { ensureTriggers(book.getId()); } catch (e) { Logger.log('Trigger qurulmadı: ' + e); }
+  SpreadsheetApp.flush();
+  bumpAll();
+  DB.reset();
+  Logger.log('Hazırdır (v' + VERSION + '). Admin telefonu: ' + cleanPhone(ADMIN_PHONE));
   Logger.log('Data Sheet: ' + book.getUrl());
 }
 
-/** Köhnə sessiyaları və istifadə olunmuş linkləri təmizləyir (gündəlik trigger üçün). */
-function cleanup() {
-  const now = nowIso();
-  ['Sessions'].forEach(name => {
-    const rows = DB.all(name).filter(r => r.expires && r.expires < now).sort((a, b) => b._row - a._row);
-    rows.forEach(r => DB.sheet(name).deleteRow(r._row));
-  });
+/** Avtomatik işlər: Sheet-də əl ilə dəyişiklik → keş yenilənir; gecə təmizləmə və ehtiyat surəti. */
+function ensureTriggers(sheetId) {
+  const have = ScriptApp.getProjectTriggers().map(t => t.getHandlerFunction());
+  if (have.indexOf('onSheetChange') < 0) ScriptApp.newTrigger('onSheetChange').forSpreadsheet(sheetId).onChange().create();
+  if (have.indexOf('cleanup') < 0) ScriptApp.newTrigger('cleanup').timeBased().everyDays(1).atHour(3).inTimezone(TZ).create();
+  if (have.indexOf('dailyBackup') < 0) ScriptApp.newTrigger('dailyBackup').timeBased().everyDays(1).atHour(2).inTimezone(TZ).create();
 }
 
-/** Gündəlik ehtiyat surəti (trigger: hər gün). */
+/** Sheet-də əl ilə dəyişiklik olanda bütün keşi etibarsız edir. */
+function onSheetChange() { bumpAll(); }
+
+function bumpAll() {
+  const b = { epoch: Utilities.getUuid().slice(0, 8) };
+  Object.keys(SCHEMA).forEach(n => { b['ver_' + n] = Utilities.getUuid().slice(0, 8); });
+  PropertiesService.getScriptProperties().setProperties(b, false);
+  P.reset();
+}
+
+/** Keşi əl ilə sıfırlamaq üçün. */
+function clearCache() { bumpAll(); Logger.log('Keş yeniləndi'); }
+
+/** Admin telefonunu və PIN-i yuxarıdakı ADMIN_* dəyərlərinə görə yazır (PIN unudulanda). */
+function setAdminLogin() {
+  if (cleanPhone(ADMIN_PHONE) === '994500000000' && String(ADMIN_PIN) === '1234') {
+    Logger.log('Əvvəlcə kodun əvvəlində ADMIN_PHONE və ADMIN_PIN dəyərlərini öz telefonunuza və PIN-inizə dəyişin, Save basın, sonra yenidən işə salın.');
+    return;
+  }
+  if (!/^\d{4,8}$/.test(String(ADMIN_PIN))) { Logger.log('ADMIN_PIN 4–8 rəqəm olmalıdır.'); return; }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    P.reset(); DB.reset();
+    const patch = { name: ADMIN_NAME, phone: cleanPhone(ADMIN_PHONE), pinHash: hashPin(ADMIN_PIN), status: 'active' };
+    const admin = DB.all('Users').find(u => u.role === 'admin');
+    if (admin) DB.update('Users', admin, patch);
+    else DB.insert('Users', Object.assign({ id: uid('U'), role: 'admin', lang: 'az', created: nowIso() }, patch));
+    DB.commit();
+  } finally { lock.releaseLock(); }
+  Logger.log('Admin girişi yazıldı. Telefon: ' + cleanPhone(ADMIN_PHONE));
+}
+
+/** Gecə təmizləmə: köhnə sessiya və linklər silinir, köhnə qeydlər arxivə köçür. */
+function cleanup() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(60000);
+  try {
+    P.reset(); DB.reset();
+    const now = nowIso();
+    prune('Sessions', r => r.expires < now, false);
+    prune('Tokens', r => String(r.created).slice(0, 10) < daysAgo(7), false);
+    prune('GeoRejects', r => String(r.ts).slice(0, 10) < daysAgo(90), true);
+    prune('AuditLog', r => String(r.ts).slice(0, 10) < daysAgo(60), true);
+    prune('Attendance', r => String(r.date) < daysAgo(150) && r.status !== 'PENDING', true);
+    DB.commit();
+  } finally { lock.releaseLock(); }
+}
+
+function prune(name, isOld, archive) {
+  const sh = DB.sheet(name);
+  const values = sh.getDataRange().getValues();
+  if (values.length < 2) return 0;
+  const head = SCHEMA[name], keep = [], old = [];
+  for (let i = 1; i < values.length; i++) {
+    const o = {};
+    head.forEach((h, j) => { o[h] = normCell(values[i][j], h); });
+    if (head.every(h => o[h] === '')) continue;
+    (isOld(o) ? old : keep).push(head.map(h => o[h]));
+  }
+  if (!old.length) return 0;
+  if (archive) archiveRows(name, old);
+  sh.getRange(2, 1, values.length - 1, Math.max(head.length, values[0].length)).clearContent();
+  if (keep.length) sh.getRange(2, 1, keep.length, head.length).setNumberFormat('@').setValues(keep);
+  DB.markDirty(name);
+  return old.length;
+}
+
+function archiveRows(name, rows) {
+  const props = PropertiesService.getScriptProperties();
+  let book = null;
+  const id = props.getProperty('ARCHIVE_ID');
+  if (id) { try { book = SpreadsheetApp.openById(id); } catch (e) { book = null; } }
+  if (!book) {
+    book = SpreadsheetApp.create('Ustabaşı — arxiv');
+    try { book.setSpreadsheetTimeZone(TZ); } catch (e) { /* ignore */ }
+    props.setProperty('ARCHIVE_ID', book.getId());
+  }
+  const head = SCHEMA[name];
+  let sh = book.getSheetByName(name);
+  if (!sh) { sh = book.insertSheet(name); sh.getRange(1, 1, 1, head.length).setValues([head]); }
+  const start = sh.getLastRow() + 1, end = start + rows.length - 1;
+  if (end > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), end - sh.getMaxRows());
+  sh.getRange(start, 1, rows.length, head.length).setNumberFormat('@').setValues(rows);
+}
+
+/** Gündəlik ehtiyat surəti; son 14 surət saxlanır. */
 function dailyBackup() {
-  const file = DriveApp.getFileById(DB.book().getId());
-  const name = 'Ustabaşı ehtiyat ' + todayStr();
-  file.makeCopy(name, DriveApp.getFolderById(PropertiesService.getScriptProperties().getProperty('PHOTO_FOLDER')));
+  const props = PropertiesService.getScriptProperties();
+  let folder = null;
+  const fid = props.getProperty('BACKUP_FOLDER');
+  if (fid) { try { folder = DriveApp.getFolderById(fid); } catch (e) { folder = null; } }
+  if (!folder) { folder = DriveApp.createFolder('Ustabaşı — ehtiyat surətləri'); props.setProperty('BACKUP_FOLDER', folder.getId()); }
+  DriveApp.getFileById(props.getProperty('SHEET_ID')).makeCopy('Ustabaşı ehtiyat ' + todayStr(), folder);
+  const files = [];
+  const it = folder.getFiles();
+  while (it.hasNext()) files.push(it.next());
+  files.sort((a, b) => b.getDateCreated() - a.getDateCreated());
+  files.slice(14).forEach(f => f.setTrashed(true));
 }
 
 // ======================================================================
@@ -382,39 +679,73 @@ function dailyBackup() {
 // ======================================================================
 
 function doGet() {
-  const ready = !!PropertiesService.getScriptProperties().getProperty('SHEET_ID');
-  return json({ ok: true, app: 'ustabasi', version: '0.1.1', ready });
+  P.reset();
+  return json({ ok: true, app: 'ustabasi', version: VERSION, ready: !!P.get('SHEET_ID') });
 }
+
+// Hər əməliyyat üçün lazım olan vərəqlər bir dəfədə (keşdən) yüklənir.
+const PAY_SHEETS = ['Settings', 'Workers', 'Users', 'Attendance', 'WorkEntries', 'WorkShares', 'WorkTypes', 'Estimates', 'Sites', 'Advances', 'Deductions', 'PlanDays', 'Periods'];
+const PREFETCH = {
+  ping: [],
+  login: ['Users', 'Settings', 'Sessions'],
+  tokenInfo: ['Tokens', 'Workers', 'Sites', 'Users', 'WorkEntries', 'WorkTypes', 'WorkShares', 'Attendance'],
+  tokenConfirm: ['Tokens', 'Workers', 'Sites', 'Settings', 'WorkShares', 'WorkEntries', 'Attendance', 'GeoRejects'],
+  bootstrap: PAY_SHEETS.concat(['Customers', 'CustomerPayments', 'GeoRejects']),
+  report: PAY_SHEETS.concat(['GeoRejects']),
+  calcPayroll: PAY_SHEETS.concat(['Payroll']),
+  closePeriod: PAY_SHEETS.concat(['Payroll']),
+  interim: PAY_SHEETS,
+  createToken: ['Workers', 'Sites', 'Settings', 'Tokens'],
+  manualAttendance: ['Workers', 'Sites', 'Periods', 'Attendance'],
+  saveWorkEntry: ['Sites', 'WorkTypes', 'Workers', 'WorkEntries', 'WorkShares', 'Periods', 'Tokens'],
+  workLinks: ['WorkEntries', 'WorkShares', 'Workers', 'Tokens'],
+  requestAdvance: ['Workers', 'Settings', 'PlanDays', 'Advances'],
+  approveWork: ['WorkEntries', 'Periods'],
+  approveAdvance: ['Advances'],
+  approveAttendance: ['Attendance', 'Periods'],
+  markPaid: ['Payroll']
+};
+const READ_ONLY = { ping: 1, tokenInfo: 1, bootstrap: 1, me: 1, calcPayroll: 1, interim: 1, report: 1 };
 
 function doPost(e) {
-  DB.reset();
-  if (!PropertiesService.getScriptProperties().getProperty('SHEET_ID')) {
-    const lock = LockService.getScriptLock();
-    lock.waitLock(30000);
-    try { if (!PropertiesService.getScriptProperties().getProperty('SHEET_ID')) setup(); } finally { lock.releaseLock(); }
-    DB.reset();
-  }
+  const t0 = Date.now();
+  DB.reset(); P.reset();
   let body = {};
   try { body = JSON.parse(e.postData.contents || '{}'); } catch (err) { return json({ ok: false, error: 'bad_json' }); }
-  const action = body.action;
+  const action = String(body.action || '');
+  let lock = null;
   try {
-    if (PUBLIC[action]) return json({ ok: true, data: withLock(action, () => PUBLIC[action](body)) });
-    const user = requireUser(body.token);
-    const fn = (user.role === 'admin' ? ADMIN[action] || COMMON[action] || FOREMAN[action] : COMMON[action] || FOREMAN[action]);
-    if (!fn) return json({ ok: false, error: 'forbidden' });
-    return json({ ok: true, data: withLock(action, () => fn(body, user)) });
+    if (!P.get('SHEET_ID')) autoSetup();
+    if (!READ_ONLY[action]) {
+      // Yazan sorğular növbə ilə işləyir; data kilid alınandan SONRA oxunur.
+      lock = LockService.getScriptLock();
+      lock.waitLock(25000);
+      P.reset(); DB.reset();
+    }
+    const isPublic = !!PUBLIC[action];
+    DB.load((isPublic ? [] : ['Sessions', 'Users']).concat(PREFETCH[action] || ['Settings']));
+    let data;
+    if (isPublic) data = PUBLIC[action](body);
+    else {
+      const user = requireUser(body.token);
+      const fn = (user.role === 'admin' ? ADMIN[action] || COMMON[action] || FOREMAN[action] : COMMON[action] || FOREMAN[action]);
+      if (!fn) return json({ ok: false, error: 'forbidden' });
+      data = fn(body, user);
+    }
+    return json({ ok: true, data, ms: Date.now() - t0, db: DB.stats() });
   } catch (err) {
     const msg = String(err && err.message || err);
-    return json({ ok: false, error: msg.indexOf(' ') < 0 ? msg : 'server', detail: msg });
+    return json({ ok: false, error: msg.indexOf(' ') < 0 ? msg : 'server', detail: msg, ms: Date.now() - t0 });
+  } finally {
+    if (lock) { try { DB.commit(); } finally { lock.releaseLock(); } }
   }
 }
 
-const READ_ONLY = { tokenInfo: 1, bootstrap: 1, me: 1, calcPayroll: 1, interim: 1, report: 1, ping: 1 };
-function withLock(action, fn) {
-  if (READ_ONLY[action]) return fn();
+function autoSetup() {
   const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try { return fn(); } finally { lock.releaseLock(); }
+  lock.waitLock(30000);
+  try { P.reset(); if (!P.get('SHEET_ID')) setup(); } finally { lock.releaseLock(); }
+  P.reset(); DB.reset();
 }
 
 function json(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
@@ -422,7 +753,7 @@ function fail(code) { throw new Error(code); }
 
 function cleanPhone(p) { return String(p || '').replace(/\D/g, ''); }
 function hashPin(pin) {
-  const salt = PropertiesService.getScriptProperties().getProperty('SALT') || '';
+  const salt = P.get('SALT') || '';
   const raw = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, salt + ':' + String(pin));
   return raw.map(b => ('0' + (b & 0xff).toString(16)).slice(-2)).join('');
 }
@@ -558,7 +889,8 @@ const COMMON = {
     const admin = u.role === 'admin';
     const today = todayStr();
     const month = b.month || today.slice(0, 7);
-    const from = Utilities.formatDate(new Date(Date.now() - 40 * 86400000), tz(), 'yyyy-MM-dd');
+    // Telefona yalnız lazım olan data gedir: davamiyyət 3 gün, iş 14 gün, avans 40 gün + açıq qeydlər.
+    const from3 = daysAgo(3), from14 = daysAgo(14), from40 = daysAgo(40);
     const strip = o => { const c = Object.assign({}, o); delete c._row; delete c.pinHash; return c; };
 
     const foremen = DB.all('Users').filter(x => x.role === 'foreman' && x.status !== 'deleted').map(strip);
@@ -571,25 +903,40 @@ const COMMON = {
     }
     const wIds = {}; workers.forEach(w => { wIds[w.id] = 1; });
     const sIds = {}; sites.forEach(s => { sIds[s.id] = 1; });
-    const entries = DB.all('WorkEntries').filter(e => (admin || sIds[e.siteId]) && (e.date >= from || e.status !== 'APPROVED')).map(strip);
+    const entries = DB.all('WorkEntries').filter(e => (admin || sIds[e.siteId]) && (e.date >= from14 || e.status !== 'APPROVED')).map(strip);
     const eIds = {}; entries.forEach(e => { eIds[e.id] = 1; });
-    return {
-      user: publicUser(u), settings: st, today, month, now: nowIso(),
+    const out = {
+      user: publicUser(u), settings: st, today, month, now: nowIso(), version: VERSION,
       foremen: admin ? foremen : foremen.filter(f => f.id === u.id).map(f => ({ id: f.id, name: f.name, phone: f.phone })),
       workers, sites,
       customers: DB.all('Customers').map(strip),
       workTypes: DB.all('WorkTypes').filter(x => x.active !== 'no').map(strip),
       estimates: DB.all('Estimates').filter(x => admin || sIds[x.siteId]).map(strip),
       payments: admin ? DB.all('CustomerPayments').map(strip) : [],
-      attendance: DB.all('Attendance').filter(a => a.date >= from && (admin || wIds[a.workerId])).map(strip),
+      attendance: DB.all('Attendance').filter(a => (a.date >= from3 || a.status === 'PENDING') && (admin || wIds[a.workerId])).map(strip),
       entries,
       shares: DB.all('WorkShares').filter(s => eIds[s.entryId]).map(strip),
-      advances: DB.all('Advances').filter(a => (admin || wIds[a.workerId]) && (a.created >= from || ['PENDING', 'APPROVED', 'GIVEN'].indexOf(a.status) >= 0)).map(strip),
-      deductions: DB.all('Deductions').filter(d => d.date >= from && (admin || wIds[d.workerId])).map(strip),
+      advances: DB.all('Advances').filter(a => (admin || wIds[a.workerId]) && (a.created >= from40 || ['PENDING', 'APPROVED', 'GIVEN'].indexOf(a.status) >= 0)).map(strip),
       planDays: DB.all('PlanDays').map(strip),
       periods: DB.all('Periods').map(strip),
-      geoRejects: admin ? DB.all('GeoRejects').filter(g => String(g.ts) >= from).map(strip) : []
+      geoRejects: admin ? DB.all('GeoRejects').filter(g => String(g.ts).slice(0, 10) === today).map(strip) : []
     };
+    if (admin) {
+      // Dashboard üçün ayın xülasəsi — ayrıca sorğu lazım olmasın.
+      const data = payrollInput(month);
+      const res = computePayroll(data);
+      const est = {}; data.estimates.forEach(x => { est[x.siteId + '|' + x.workTypeId] = num(x.clientPrice); });
+      const siteDone = {};
+      DB.all('WorkEntries').forEach(e => { if (e.status === 'APPROVED') siteDone[e.siteId] = round2((siteDone[e.siteId] || 0) + num(e.qty) * (est[e.siteId + '|' + e.workTypeId] || 0)); });
+      out.summary = {
+        month,
+        fund: round2(res.lines.reduce((s, l) => s + num(l.S) + num(l.bonus), 0)),
+        advances: round2(res.lines.reduce((s, l) => s + num(l.advance), 0)),
+        costByForeman: splitCostByForeman(res.lines, data.attendance, data.sites, month),
+        siteDone
+      };
+    }
+    return out;
   },
 
   saveCustomer(b, u) {
@@ -711,7 +1058,7 @@ const FOREMAN = {
     assertOpen(date);
 
     let photos = [];
-    const folderId = PropertiesService.getScriptProperties().getProperty('PHOTO_FOLDER');
+    const folderId = P.get('PHOTO_FOLDER');
     (b.photos || []).slice(0, 5).forEach((p, i) => {
       const m = String(p).match(/^data:(image\/\w+);base64,(.+)$/);
       if (!m || !folderId) return;

@@ -5,22 +5,10 @@
   const { t, esc, icon, logo } = C;
   const params = new URLSearchParams(location.search);
   const token = params.get('t') || '';
-  if (params.get('a') && !C.CFG.API_URL) { try { C.LS.set('ub_api_link', C.fromB64url(params.get('a'))); } catch (e) { /* ignore */ } }
-  const apiUrl = () => C.CFG.API_URL || C.LS.get('ub_api_link') || C.LS.get('ub_api') || '';
 
   async function call(action, body) {
-    const url = apiUrl();
-    const payload = Object.assign({ action, t: token }, body || {});
-    let j;
-    if (url === 'mock' && window.__mockCall) j = await window.__mockCall(payload);
-    else {
-      if (!url) throw C.err('no_api');
-      let res;
-      try { res = await fetch(url, { method: 'POST', body: JSON.stringify(payload), headers: { 'Content-Type': 'text/plain;charset=utf-8' } }); }
-      catch (e) { throw C.err('network'); }
-      j = await res.json();
-    }
-    if (!j.ok) throw C.err(j.error || 'server', j.detail);
+    const j = await C.API.raw(Object.assign({ action, t: token }, body || {}));
+    if (!j || !j.ok) throw C.err((j && j.error) || 'server', j && j.detail);
     return j.data;
   }
 

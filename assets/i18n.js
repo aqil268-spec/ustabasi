@@ -12,7 +12,6 @@ window.I18N = {
     nav_approvals: 'Təsdiq mərkəzi', nav_approvals_short: 'Təsdiq', nav_payroll: 'Vedomost', nav_reports: 'Hesabatlar', nav_catalog: 'Kataloq', nav_settings: 'Ayarlar', nav_more: 'Daha çox', nav_work: 'İş', nav_advances: 'Avans',
 
     login: 'Daxil ol', logout: 'Çıxış', logout_q: 'Hesabdan çıxmaq istəyirsiniz?', phone: 'Telefon', pin: 'PIN kod', language: 'Dil', loading: 'Yüklənir…',
-    server_url: 'Server ünvanı', server_url_hint: 'Apps Script web app linki (…/exec)',
     role: 'Rol', role_admin: 'Admin', role_foreman: 'Prarab', profile: 'Profil', name: 'Ad, soyad',
     change_pin: 'PIN kodu dəyiş', old_pin: 'Köhnə PIN', new_pin: 'Yeni PIN', new_pin_opt: 'Yeni PIN (dəyişmək üçün)',
     app_settings: 'Tətbiq ayarları', s_link_ttl: 'Link müddəti, dəqiqə', s_radius: 'Default radius, m', s_late: 'Gecikmə toleransı, dəqiqə', s_adv_limit: 'Avans limiti, maaşın %-i',
@@ -112,7 +111,14 @@ window.I18N = {
     err_bad_qty: 'Həcmi düzgün yazın', err_no_shares: 'Ən azı 1 usta seçin', err_shares_not_100: 'Payların cəmi 100% olmalıdır', err_already_approved: 'Qeyd artıq təsdiqlənib', err_period_closed: 'Bu ay bağlanıb',
     err_bad_amount: 'Məbləği düzgün yazın', err_bad_status: 'Status uyğun deyil', err_phone_taken: 'Bu telefon artıq istifadə olunur', err_bad_pin: 'PIN 4–8 rəqəm olmalıdır', err_limit_foremen: 'Prarab limiti dolub',
     err_limit_workers: 'Bu prarabda usta limiti dolub', err_not_ready: 'Usta hələ təsdiq etməyib', err_bad_days: 'Gün sayı 1–31 olmalıdır', err_no_plan_days: 'Əvvəl plan iş gününü yazın', err_bad_image: 'Şəkil oxunmadı',
-    err_dup_worker: 'Hər usta bir dəfə seçilməlidir', err_too_far: 'Obyektdən uzaqdasınız'
+    err_dup_worker: 'Hər usta bir dəfə seçilməlidir', err_too_far: 'Obyektdən uzaqdasınız',
+    updating: 'Yenilənir…', offline_snapshot: 'Əlaqə yoxdur — son data göstərilir. Yenidən yoxla', err_not_setup: 'Server quraşdırılmayıb. Apps Script-də setup funksiyasını işə salın.', err_stale_row: 'Bu qeyd Sheet-də dəyişib və ya silinib. Səhifəni yeniləyin.',
+    diag_title: 'Sürət yoxlaması', diag_hint: 'Tətbiq gec açılırsa, yoxlayın: vaxtın harada getdiyini göstərir.', diag_run: 'Yoxla', diag_ping_cold: 'Serverə 1-ci sorğu',
+    diag_ping_warm: 'Serverə 2-ci sorğu', diag_boot: 'Bütün datanın yüklənməsi', diag_server: 'Serverdə iş', diag_net: 'İnternet və Google',
+    diag_reads: 'Sheet / keş', diag_reads_note: 'Sheet / keş: neçə vərəq Sheet-dən, neçəsi keşdən oxundu.', diag_size: 'Data həcmi', diag_last: 'Sorğu',
+    diag_total: 'Cəmi', diag_a_bootstrap: 'Bütün data', diag_a_ping: 'Yoxlama', diag_a_login: 'Giriş',
+    diag_a_report: 'Hesabat', diag_n_cold: 'Google serveri “soyuq” başladı (1–3 san). Bu normaldır: bir müddət istifadə olunmayanda olur.', diag_n_cache: 'Keş hələ dolmayıb. Bir daha yoxlayın — ikinci dəfə tez olmalıdır.', diag_n_net: 'İnternet zəifdir və ya Google gec cavab verir.',
+    diag_n_ok: 'Hər şey qaydasındadır.'
   },
 
   ru: {
@@ -127,7 +133,6 @@ window.I18N = {
     nav_approvals: 'Центр подтверждений', nav_approvals_short: 'Подтвердить', nav_payroll: 'Ведомость', nav_reports: 'Отчёты', nav_catalog: 'Каталог', nav_settings: 'Настройки', nav_more: 'Ещё', nav_work: 'Работы', nav_advances: 'Аванс',
 
     login: 'Войти', logout: 'Выйти', logout_q: 'Выйти из аккаунта?', phone: 'Телефон', pin: 'PIN-код', language: 'Язык', loading: 'Загрузка…',
-    server_url: 'Адрес сервера', server_url_hint: 'Ссылка Apps Script web app (…/exec)',
     role: 'Роль', role_admin: 'Админ', role_foreman: 'Прораб', profile: 'Профиль', name: 'Имя, фамилия',
     change_pin: 'Сменить PIN', old_pin: 'Старый PIN', new_pin: 'Новый PIN', new_pin_opt: 'Новый PIN (для смены)',
     app_settings: 'Настройки приложения', s_link_ttl: 'Срок ссылки, минут', s_radius: 'Радиус по умолчанию, м', s_late: 'Допуск опоздания, минут', s_adv_limit: 'Лимит аванса, % зарплаты',
@@ -227,7 +232,14 @@ window.I18N = {
     err_bad_qty: 'Укажите объём правильно', err_no_shares: 'Выберите хотя бы 1 мастера', err_shares_not_100: 'Сумма долей должна быть 100%', err_already_approved: 'Запись уже подтверждена', err_period_closed: 'Этот месяц закрыт',
     err_bad_amount: 'Укажите сумму правильно', err_bad_status: 'Неподходящий статус', err_phone_taken: 'Этот телефон уже используется', err_bad_pin: 'PIN должен быть из 4–8 цифр', err_limit_foremen: 'Лимит прорабов исчерпан',
     err_limit_workers: 'Лимит мастеров у этого прораба исчерпан', err_not_ready: 'Мастер ещё не подтвердил', err_bad_days: 'Количество дней должно быть 1–31', err_no_plan_days: 'Сначала укажите плановые дни', err_bad_image: 'Не удалось прочитать фото',
-    err_dup_worker: 'Каждого мастера можно выбрать один раз', err_too_far: 'Вы далеко от объекта'
+    err_dup_worker: 'Каждого мастера можно выбрать один раз', err_too_far: 'Вы далеко от объекта',
+    updating: 'Обновляется…', offline_snapshot: 'Нет связи — показаны последние данные. Повторить', err_not_setup: 'Сервер не настроен. Запустите функцию setup в Apps Script.', err_stale_row: 'Эта запись изменена или удалена в таблице. Обновите страницу.',
+    diag_title: 'Проверка скорости', diag_hint: 'Если приложение открывается медленно, проверьте: видно, на что уходит время.', diag_run: 'Проверить', diag_ping_cold: '1-й запрос к серверу',
+    diag_ping_warm: '2-й запрос к серверу', diag_boot: 'Загрузка всех данных', diag_server: 'Работа сервера', diag_net: 'Интернет и Google',
+    diag_reads: 'Таблица / кэш', diag_reads_note: 'Таблица / кэш: сколько листов прочитано из таблицы и сколько из кэша.', diag_size: 'Объём данных', diag_last: 'Запрос',
+    diag_total: 'Всего', diag_a_bootstrap: 'Все данные', diag_a_ping: 'Проверка', diag_a_login: 'Вход',
+    diag_a_report: 'Отчёт', diag_n_cold: 'Сервер Google запустился «холодным» (1–3 с). Это нормально после перерыва.', diag_n_cache: 'Кэш ещё не заполнен. Проверьте ещё раз — второй раз должно быть быстро.', diag_n_net: 'Слабый интернет или Google отвечает медленно.',
+    diag_n_ok: 'Всё в порядке.'
   },
 
   en: {
@@ -242,7 +254,6 @@ window.I18N = {
     nav_approvals: 'Approvals', nav_approvals_short: 'Approve', nav_payroll: 'Payroll', nav_reports: 'Reports', nav_catalog: 'Catalog', nav_settings: 'Settings', nav_more: 'More', nav_work: 'Work', nav_advances: 'Advances',
 
     login: 'Sign in', logout: 'Sign out', logout_q: 'Sign out of your account?', phone: 'Phone', pin: 'PIN', language: 'Language', loading: 'Loading…',
-    server_url: 'Server address', server_url_hint: 'Apps Script web app link (…/exec)',
     role: 'Role', role_admin: 'Admin', role_foreman: 'Foreman', profile: 'Profile', name: 'Full name',
     change_pin: 'Change PIN', old_pin: 'Old PIN', new_pin: 'New PIN', new_pin_opt: 'New PIN (to change)',
     app_settings: 'App settings', s_link_ttl: 'Link lifetime, minutes', s_radius: 'Default radius, m', s_late: 'Late tolerance, minutes', s_adv_limit: 'Advance limit, % of pay',
@@ -342,6 +353,13 @@ window.I18N = {
     err_bad_qty: 'Enter a correct volume', err_no_shares: 'Select at least 1 worker', err_shares_not_100: 'Shares must total 100%', err_already_approved: 'The entry is already approved', err_period_closed: 'This month is closed',
     err_bad_amount: 'Enter a correct amount', err_bad_status: 'Wrong status', err_phone_taken: 'This phone is already used', err_bad_pin: 'PIN must be 4–8 digits', err_limit_foremen: 'Foreman limit reached',
     err_limit_workers: 'Worker limit for this foreman reached', err_not_ready: 'The worker has not confirmed yet', err_bad_days: 'Days must be 1–31', err_no_plan_days: 'Enter planned work days first', err_bad_image: 'Could not read the photo',
-    err_dup_worker: 'Select each worker only once', err_too_far: 'You are far from the site'
+    err_dup_worker: 'Select each worker only once', err_too_far: 'You are far from the site',
+    updating: 'Updating…', offline_snapshot: 'No connection — showing saved data. Retry', err_not_setup: 'The server is not set up. Run the setup function in Apps Script.', err_stale_row: 'This record was changed or deleted in the Sheet. Refresh the page.',
+    diag_title: 'Speed check', diag_hint: 'If the app is slow, run this check: it shows where the time goes.', diag_run: 'Run check', diag_ping_cold: '1st request to server',
+    diag_ping_warm: '2nd request to server', diag_boot: 'Loading all data', diag_server: 'Server work', diag_net: 'Internet and Google',
+    diag_reads: 'Sheet / cache', diag_reads_note: 'Sheet / cache: how many sheets were read from the Sheet and how many from the cache.', diag_size: 'Data size', diag_last: 'Request',
+    diag_total: 'Total', diag_a_bootstrap: 'All data', diag_a_ping: 'Check', diag_a_login: 'Sign in',
+    diag_a_report: 'Report', diag_n_cold: 'The Google server had a cold start (1–3 s). This is normal after a pause.', diag_n_cache: 'The cache is not filled yet. Run the check again — the second time must be fast.', diag_n_net: 'The internet is slow or Google answers slowly.',
+    diag_n_ok: 'Everything is OK.'
   }
 };

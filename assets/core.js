@@ -2,6 +2,9 @@
 (function () {
   'use strict';
   const CFG = window.USTABASI_CONFIG || {};
+  // Server ünvanı (Google Apps Script web app). config.js-də də yazılıb; orada boş qalsa, bu istifadə olunur.
+  const DEFAULT_API = 'https://script.google.com/macros/s/AKfycbwPQJU6BvlmpywJfDCacbq7nasT_4LLwT0x1aOvqRwLTxCY8uEixqXZiiO-pUSFoQ/exec';
+  const TIMEOUT_MS = 60000;
 
   const LS = {
     get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -11,24 +14,44 @@
   function err(code, detail) { const e = new Error(code); e.code = code; e.detail = detail; return e; }
 
   const API = {
-    url() { return (CFG.API_URL || LS.get('ub_api') || '').trim(); },
+    log: [],
+    url() { return String(CFG.API_URL || DEFAULT_API).trim(); },
     token() { return LS.get('ub_token'); },
+    /** Sorğu göndərir; vaxtı ölçür (diaqnostika üçün). */
     async call(action, params) {
-      const url = this.url();
-      const body = Object.assign({ action, token: this.token() }, params || {});
-      let j;
-      if (url === 'mock' && window.__mockCall) {
-        j = await window.__mockCall(JSON.parse(JSON.stringify(body)));
-      } else {
-        if (!url) throw err('no_api');
-        let res;
-        try {
-          res = await fetch(url, { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
-        } catch (e) { throw err('network'); }
-        try { j = await res.json(); } catch (e) { throw err('server'); }
-      }
+      const j = await this.raw(Object.assign({ action, token: this.token() }, params || {}));
       if (!j || !j.ok) throw err((j && j.error) || 'server', j && j.detail);
       return j.data;
+    },
+    async raw(body) {
+      const url = this.url();
+      const t0 = performance.now();
+      let j, size = 0;
+      if (url === 'mock' && window.__mockCall) {
+        j = await window.__mockCall(JSON.parse(JSON.stringify(body)));
+        size = JSON.stringify(j).length;
+      } else {
+        if (!url) throw err('no_api');
+        const ctl = window.AbortController ? new AbortController() : null;
+        const timer = ctl ? setTimeout(() => ctl.abort(), TIMEOUT_MS) : null;
+        let text;
+        try {
+          const res = await fetch(url, { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: ctl ? ctl.signal : undefined });
+          text = await res.text();
+        } catch (e) { throw err('network'); }
+        finally { if (timer) clearTimeout(timer); }
+        size = text.length;
+        try { j = JSON.parse(text); } catch (e) { throw err('server'); }
+      }
+      const rec = { action: body.action, ms: Math.round(performance.now() - t0), server: j && j.ms, reads: j && j.db ? j.db.reads : null, cached: j && j.db ? j.db.cached : null, kb: Math.round(size / 102.4) / 10, at: Date.now() };
+      this.log.unshift(rec); if (this.log.length > 30) this.log.length = 30;
+      return j;
+    },
+    /** Serveri "oyadır" (Google-un soyuq başlanğıcı) — giriş ekranı açılan kimi. */
+    warm() {
+      if (this._warm) return this._warm;
+      this._warm = this.raw({ action: 'ping' }).catch(() => null);
+      return this._warm;
     }
   };
 
@@ -222,10 +245,7 @@
   }
   function b64url(s) { return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
   function fromB64url(s) { s = String(s).replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return decodeURIComponent(escape(atob(s))); }
-  function linkUrl(token) {
-    const api = API.url();
-    return appBase() + 'u.html?t=' + encodeURIComponent(token) + (!CFG.API_URL && api && api !== 'mock' ? '&a=' + b64url(api) : '');
-  }
+  function linkUrl(token) { return appBase() + 'u.html?t=' + encodeURIComponent(token); }
   function waPhone(p) { let d = String(p || '').replace(/\D/g, ''); if (d.length === 9) d = '994' + d; if (d.length === 10 && d[0] === '0') d = '994' + d.slice(1); return d; }
   function whatsapp(phone, text) {
     const url = 'https://wa.me/' + waPhone(phone) + '?text=' + encodeURIComponent(text);

@@ -127,12 +127,15 @@
       no: el => decide(el.dataset.type, el.dataset.id, false, el)
     });
 
-    API.call('report', { month: d.month }).then(r => {
-      const fund = r.lines.reduce((s, l) => s + C.n(l.S) + C.n(l.bonus), 0);
-      const adv = r.lines.reduce((s, l) => s + C.n(l.advance), 0);
+    const fill = (fund, adv, costByForeman) => {
       const el = view.querySelector('#kpi-fund'); if (el) el.textContent = C.money(fund);
       const sub = view.querySelector('#kpi-fund-sub'); if (sub) sub.textContent = t('adv_deducted', { v: C.money(adv) });
-      view.querySelectorAll('[data-cost]').forEach(td => { td.textContent = C.num(r.costByForeman[td.dataset.cost] || 0); });
+      view.querySelectorAll('[data-cost]').forEach(td => { td.textContent = C.num(costByForeman[td.dataset.cost] || 0); });
+    };
+    // Ayın xülasəsi bootstrap-la birlikdə gəlir (v0.2+). Köhnə server üçün ayrıca sorğu.
+    if (d.summary && d.summary.month === d.month) fill(d.summary.fund, d.summary.advances, d.summary.costByForeman || {});
+    else API.call('report', { month: d.month }).then(r => {
+      fill(r.lines.reduce((s, l) => s + C.n(l.S) + C.n(l.bonus), 0), r.lines.reduce((s, l) => s + C.n(l.advance), 0), r.costByForeman || {});
     }).catch(() => { const el = view.querySelector('#kpi-fund'); if (el) el.textContent = '—'; });
   };
 
@@ -343,7 +346,8 @@
     const est = d.estimates.filter(e => e.siteId === s.id);
     const pays = d.payments.filter(p => p.siteId === s.id);
     const estSum = est.reduce((a, e) => a + C.n(e.planQty) * C.n(e.clientPrice), 0);
-    const done = d.entries.filter(e => e.siteId === s.id && e.status === 'APPROVED').reduce((a, e) => { const x = est.find(z => z.workTypeId === e.workTypeId); return a + C.n(e.qty) * C.n(x && x.clientPrice); }, 0);
+    // Görülən iş: bütün təsdiqlənmiş qeydlər (serverdə hesablanır; telefona yalnız son 14 gün gəlir).
+    const done = d.summary && d.summary.siteDone ? C.n(d.summary.siteDone[s.id]) : d.entries.filter(e => e.siteId === s.id && e.status === 'APPROVED').reduce((a, e) => { const x = est.find(z => z.workTypeId === e.workTypeId); return a + C.n(e.qty) * C.n(x && x.clientPrice); }, 0);
     const paid = pays.reduce((a, p) => a + C.n(p.amount), 0);
     const base = C.n(s.contractAmount) || estSum;
     const dlg = C.dialog({
