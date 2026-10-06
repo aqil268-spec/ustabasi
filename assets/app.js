@@ -3,7 +3,7 @@
   'use strict';
   const C = window.UBCore;
   const { t, esc, icon, logo, API, LS } = C;
-  const VERSION = '0.1.0';
+  const VERSION = '0.1.1';
 
   const UB = window.UB = { data: null, idx: {}, user: null, screens: { admin: {}, foreman: {}, common: {} }, version: VERSION };
 

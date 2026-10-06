@@ -1,5 +1,5 @@
 /* Ustabaşı — service worker: tətbiq faylları üçün "əvvəl şəbəkə, sonra keş" */
-const CACHE = 'ustabasi-v0.1.0';
+const CACHE = 'ustabasi-v0.1.1';
 const SHELL = [
   './', './index.html', './u.html', './config.js', './manifest.webmanifest',
   './assets/app.css', './assets/i18n.js', './assets/core.js', './assets/app.js', './assets/admin.js', './assets/foreman.js', './assets/link.js',
