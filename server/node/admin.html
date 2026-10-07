@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="az">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Master — xidmət</title>
+<style>
+  :root { --bg:#f6f5f2; --card:#fff; --ink:#1d1d1b; --mute:#6b6a66; --line:#e3e1db; --acc:#1f5f4a; --warn:#a33a1f; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#151614; --card:#1e201d; --ink:#ecebe6; --mute:#a3a29c; --line:#30322e; --acc:#5fb394; --warn:#e07a5f; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:520px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:22px; margin:0 0 4px; } p.sub { color:var(--mute); margin:0 0 20px; font-size:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px; }
+  label { display:block; font-size:13px; color:var(--mute); margin:10px 0 4px; }
+  input { width:100%; padding:11px 12px; font-size:16px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); }
+  button { width:100%; padding:12px; font-size:15px; font-weight:600; border:0; border-radius:8px; background:var(--acc); color:#fff; cursor:pointer; margin-top:14px; }
+  button.sec { background:transparent; color:var(--ink); border:1px solid var(--line); }
+  button.warn { background:var(--warn); }
+  button:disabled { opacity:.5; }
+  .fn { display:flex; gap:12px; align-items:center; padding:12px 0; border-top:1px solid var(--line); }
+  .fn:first-child { border-top:0; padding-top:0; }
+  .fn div { flex:1; } .fn b { display:block; font-size:15px; } .fn span { font-size:13px; color:var(--mute); }
+  .fn button { width:auto; margin:0; padding:9px 14px; font-size:14px; white-space:nowrap; }
+  pre { white-space:pre-wrap; word-break:break-word; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:12px; font-size:13px; margin:0; min-height:48px; }
+  .err { color:var(--warn); font-size:14px; margin-top:10px; min-height:1em; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Master — xidmət</h1>
+  <p class="sub">Xidmət funksiyaları (əvvəl Apps Script-də "Run"). Yalnız admin üçün.</p>
+
+  <section class="card" id="login">
+    <label for="phone">Admin telefonu</label>
+    <input id="phone" inputmode="numeric" autocomplete="username" placeholder="994501234567">
+    <label for="pw">Şifrə</label>
+    <input id="pw" type="password" autocomplete="current-password">
+    <button id="go">Daxil ol</button>
+    <div class="err" id="lerr"></div>
+  </section>
+
+  <section id="panel" hidden>
+    <div class="card" id="fns"></div>
+    <div class="card"><pre id="out">Nəticə burada görünəcək.</pre></div>
+    <button class="sec" id="out-btn">Çıxış</button>
+  </section>
+</main>
+<script>
+(function () {
+  const FNS = [
+    ['seedTestData', 'Test data yaz', 'Sahə rəisləri, ustalar, müştərilər, obyektlər, normalar, smetalar.', ''],
+    ['removeTestData', 'Test datanı sil', 'Yalnız "Test data yaz" ilə yazılan sətirlər silinir.', 'Test data silinsin?'],
+    ['clearCache', 'Keşi sıfırla', 'Tətbiq köhnə datanı göstərirsə.', ''],
+    ['hourly', 'Vaxtı keçən linklər', 'Hər saat avtomatik işləyir.', ''],
+    ['cleanup', 'Təmizləmə', 'Köhnə sessiya və linkləri silir, köhnə qeydləri arxivə köçürür. Hər gecə avtomatik.', 'Təmizləmə indi işləsin?'],
+    ['dailyBackup', 'Ehtiyat surəti', 'Bazanın surəti. Hər gecə avtomatik.', '']
+  ];
+  const $ = id => document.getElementById(id);
+  let token = '';
+
+  async function post(url, body) {
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+    return r.json();
+  }
+  const MSG = { bad_login: 'Telefon və ya şifrə səhvdir.', locked: 'Hesab müvəqqəti bloklanıb. Bir az sonra yenidən cəhd edin.', forbidden: 'Bu səhifə yalnız admin üçündür.', must_change: 'Əvvəlcə tətbiqdə yeni şifrə yaradın, sonra buraya qayıdın.', busy: 'Server məşğuldur. Bir az sonra yenidən basın.' };
+  const msg = e => MSG[e] || ('Xəta: ' + e);
+
+  $('go').onclick = async () => {
+    $('lerr').textContent = ''; $('go').disabled = true;
+    try {
+      const r = await post('/', { action: 'login', phone: $('phone').value.replace(/\D/g, ''), password: $('pw').value });
+      if (!r.ok) { $('lerr').textContent = msg(r.error); return; }
+      if (r.data.user.role !== 'admin') { $('lerr').textContent = msg('forbidden'); return; }
+      if (r.data.mustChange) { $('lerr').textContent = msg('must_change'); return; }
+      token = r.data.token; $('pw').value = '';
+      $('login').hidden = true; $('panel').hidden = false;
+    } catch (e) { $('lerr').textContent = 'Serverə qoşulmaq olmadı.'; }
+    finally { $('go').disabled = false; }
+  };
+
+  const box = $('fns');
+  FNS.forEach(([fn, title, note, ask]) => {
+    const row = document.createElement('div'); row.className = 'fn';
+    const t = document.createElement('div');
+    const b = document.createElement('b'); b.textContent = title;
+    const s = document.createElement('span'); s.textContent = note;
+    t.append(b, s);
+    const btn = document.createElement('button'); btn.textContent = 'İşə sal';
+    if (ask) btn.className = 'warn';
+    btn.onclick = async () => {
+      if (ask && !confirm(ask)) return;
+      document.querySelectorAll('.fn button').forEach(x => { x.disabled = true; });
+      $('out').textContent = title + '…';
+      try {
+        const r = await post('/admin/run', { token, fn });
+        if (r.ok) $('out').textContent = title + ':\n' + r.log.join('\n');
+        else {
+          $('out').textContent = msg(r.error) + (r.detail ? '\n' + r.detail : '');
+          if (r.error === 'forbidden') { token = ''; $('panel').hidden = true; $('login').hidden = false; }
+        }
+      } catch (e) { $('out').textContent = 'Serverə qoşulmaq olmadı.'; }
+      finally { document.querySelectorAll('.fn button').forEach(x => { x.disabled = false; }); }
+    };
+    row.append(t, btn); box.append(row);
+  });
+
+  $('out-btn').onclick = async () => {
+    try { await post('/', { action: 'logout', token }); } catch (e) { /* ignore */ }
+    token = ''; $('panel').hidden = true; $('login').hidden = false;
+  };
+})();
+</script>
+</body>
+</html>

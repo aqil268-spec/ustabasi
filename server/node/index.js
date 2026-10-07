@@ -17,7 +17,9 @@ const MAX_BODY = 30 * 1024 * 1024;
 const CORS = process.env.CORS_ORIGIN || '*';
 
 const pool = store.makePool(process.env.DATABASE_URL);
-const rt = createRuntime({ publicUrl: PUBLIC_URL });
+let logBuf = null;   // collects Logger.log lines while a service function runs
+const rt = createRuntime({ publicUrl: PUBLIC_URL, log: (...a) => { const line = a.map(String).join(' '); if (logBuf) logBuf.push(line); console.log('[gas]', line); } });
+const ADMIN_PAGE = require('fs').readFileSync(path.join(__dirname, 'admin.html'), 'utf8');
 let ready = false;
 let viewsFor = '';
 
@@ -90,6 +92,16 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': f.mime, 'Content-Length': f.data.length, 'Cache-Control': 'private, max-age=31536000, immutable', 'Access-Control-Allow-Origin': CORS, 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': 'inline; filename="' + String(f.name).replace(/[^\w.\-]/g, '_') + '"' });
       return res.end(f.data);
     }
+    if (p === '/admin' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer' });
+      return res.end(ADMIN_PAGE);
+    }
+    if (p === '/admin/run' && req.method === 'POST') {
+      let b = {};
+      try { b = JSON.parse(await readBody(req)); } catch (e) { return send(res, 400, JSON.stringify({ ok: false, error: 'bad_json' })); }
+      const out = await serial(() => runService(String(b.token || ''), String(b.fn || '')));
+      return send(res, out.ok ? 200 : 403, JSON.stringify(out));
+    }
     if (p === '/' || p === '/exec') {
       if (req.method === 'GET') {
         const out = await serial(() => runAndSave(() => rt.api.doGet({ parameter: Object.fromEntries(url.searchParams) })));
@@ -152,6 +164,26 @@ async function main() {
   ready = true;
   server.listen(PORT, () => console.log('Master server v' + rt.api.VERSION + ' on :' + PORT + ' (' + PUBLIC_URL + ')'));
   setInterval(() => { tick().catch(e => console.error('tick', e)); }, 60000).unref();
+}
+
+// Service functions an admin can run from /admin (they were "Run" in the Apps Script editor).
+const SERVICES = ['seedTestData', 'removeTestData', 'clearCache', 'hourly', 'cleanup', 'dailyBackup'];
+
+/** Checks the session (admin, password already changed), then runs one service function. Called inside serial(). */
+async function runService(token, fn) {
+  if (SERVICES.indexOf(fn) < 0 || typeof rt.api[fn] !== 'function') return { ok: false, error: 'unknown_function' };
+  const me = JSON.parse((await runAndSave(() => rt.api.doPost({ postData: { contents: JSON.stringify({ action: 'me', token }) } }))).s);
+  if (!me.ok || !me.data || !me.data.user || me.data.user.role !== 'admin') return { ok: false, error: 'forbidden' };
+  if (me.data.user.mustChange) return { ok: false, error: 'must_change' };
+  logBuf = [];
+  try {
+    await runAndSave(() => rt.api[fn]());
+    const log = logBuf;
+    console.log('service', fn, 'by', me.data.user.id);
+    return { ok: true, fn, log: log.length ? log : ['Hazırdır.'] };
+  } catch (e) {
+    return { ok: false, error: 'server', detail: String(e && e.message || e), log: logBuf };
+  } finally { logBuf = null; }
 }
 
 /**

@@ -19,6 +19,21 @@ Bu qovluq `server/Code.gs`-i Google-dan kənarda işə salır. Biznes məntiqi d
 | `ADMIN_RESET` | Admin şifrəsini sıfırlamaq üçün istənilən söz (aşağıya bax) |
 | `ADMIN_EMAIL` | İstəyə görə |
 
+## Xidmət funksiyaları (`/admin`)
+
+Apps Script redaktorundakı "Run" əvəzinə: `<server>/admin` səhifəsini açın, admin kimi daxil olun.
+
+| Düymə | Funksiya |
+| --- | --- |
+| Test data yaz | `seedTestData` |
+| Test datanı sil | `removeTestData` |
+| Keşi sıfırla | `clearCache` |
+| Vaxtı keçən linklər | `hourly` |
+| Təmizləmə | `cleanup` |
+| Ehtiyat surəti | `dailyBackup` |
+
+Yalnız admin işə sala bilər, şifrəni dəyişməmiş admin isə yox. `setup` və `setAdminLogin` bu siyahıda yoxdur: `setup` server başlayanda özü işləyir, admin şifrəsi aşağıdakı yolla sıfırlanır.
+
 ## Admin şifrəsini sıfırlamaq
 
 Apps Script-dəki `setAdminLogin` əvəzinə:
