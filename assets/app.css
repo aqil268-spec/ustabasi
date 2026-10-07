@@ -211,7 +211,7 @@ dialog.dlg.dlg-sm .dlg-foot { border-top: none; }
 dialog.dlg.dlg-sm .dlg-foot .btn { flex: 1 1 0; }
 dialog.dlg.dlg-sm[open] { animation: dlg-pop .16s ease-out; }
 @keyframes dlg-pop { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { dialog.dlg.dlg-sm[open], #view.enter > *, #splash .sp-name, #splash .sp-bar { animation: none; opacity: 1; } .ld-pin, .ld-shadow { animation: none; } }
+@media (prefers-reduced-motion: reduce) { dialog.dlg.dlg-sm[open], #view.enter > *, #view.tab-enter .tabs ~ *, #splash .sp-name, #splash .sp-bar { animation: none; opacity: 1; } .ld-pin, .ld-shadow { animation: none; } }
 
 /* toast */
 .toast { position: fixed; left: 50%; bottom: 88px; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 12px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; z-index: 100; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); max-width: calc(100vw - 32px); }
@@ -257,6 +257,8 @@ dialog.blocker::backdrop { background: rgba(5, 7, 9, 0.55); backdrop-filter: blu
 
 /* Ekran keçidi */
 #view.enter > * { animation: viewIn .24s ease-out both; }
+#view.tab-enter .tabs ~ * { animation: tabIn .2s ease-out both; }
+@keyframes tabIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes viewIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .photos { display: flex; gap: 8px; flex-wrap: wrap; }
 .photos img { width: 72px; height: 72px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line2); }

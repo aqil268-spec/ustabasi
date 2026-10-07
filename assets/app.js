@@ -3,7 +3,7 @@
   'use strict';
   const C = window.UBCore;
   const { t, esc, icon, logo, API, LS } = C;
-  const VERSION = '0.3.7';
+  const VERSION = '0.3.8';
   const SNAP = 'ub_snap';
   const SNAP_MAX_MS = 24 * 3600 * 1000;   // 1 gün giriş olmasa telefondakı data silinir (K-15, K-17)
   // Offline-da yalnız bunlar növbəyə düşür (S-45). Server yoxlaması tələb edənlər yalnız onlayn.
@@ -337,7 +337,7 @@
   UB.langSeg = langSeg;
   UB.langOptions = () => C.LANGS.map(x => [x, C.LANG_NAMES[x]]);
 
-  let lastRouteKey = null;
+  let lastRouteKey = null, lastBase = null;
   function render() {
     const root = document.getElementById('app');
     if (!UB.data) return;
@@ -346,19 +346,48 @@
     if (route.name === 'print') {
       root.innerHTML = '<div class="print-page" id="view"></div>';
       document.documentElement.classList.add('printing');
+      lastBase = null;
       return UB.screens.common.print(document.getElementById('view'), route);
     }
     document.documentElement.classList.remove('printing');
-    root.innerHTML = shell(route);
-    const view = document.getElementById('view');
-    // Ekran keçid animasiyası yalnız başqa ekrana keçəndə (data yenilənəndə yox)
-    if (location.hash !== lastRouteKey) { lastRouteKey = location.hash; view.classList.add('enter'); setTimeout(() => view.classList.remove('enter'), 400); }
     const set = UB.isAdmin() ? UB.screens.admin : UB.screens.foreman;
     const fn = set[route.name] || UB.screens.common[route.name] || set.home;
+    const base = route.name + '/' + route.parts.slice(1).join('/');
+    const old = document.getElementById('view');
+    const sameScreen = base === lastBase && old && old.tagName === 'MAIN';
+    const tabSwitch = sameScreen && location.hash !== lastRouteKey;
+    const y = window.scrollY;
+    let view;
+    if (sameScreen) {
+      // Eyni ekran (tab, filtr və ya təzə data): menyu və başlıq yerində qalır, yalnız ekranın içi yenilənir.
+      view = document.createElement('main');
+      view.className = 'main';
+      view.id = 'view';
+      old.replaceWith(view);
+      // Menyudakı saylar (badge) və dil düymələri dəyişibsə, yalnız onlar yenilənir — loqo animasiyası təkrarlanmır.
+      const tmp = document.createElement('div'); tmp.innerHTML = shell(route);
+      ['.side .nav', '.side-foot', '.topbar', 'nav.bottom'].forEach(sel => {
+        const cur = root.querySelector(sel), next = tmp.querySelector(sel);
+        if (cur && next && cur.outerHTML !== next.outerHTML) cur.replaceWith(next);
+      });
+    } else {
+      root.innerHTML = shell(route);
+      view = document.getElementById('view');
+    }
     try { fn(view, route); }
     catch (e) { console.error(e); view.innerHTML = '<div class="empty">' + esc(C.errorText(e)) + '</div>'; }
     netBar();
-    window.scrollTo(0, 0);
+    if (!sameScreen) {
+      // Başqa ekrana keçid: yuxarıdan başla, keçid animasiyası
+      window.scrollTo(0, 0);
+      view.classList.add('enter'); setTimeout(() => view.classList.remove('enter'), 400);
+    } else {
+      window.scrollTo(0, y);
+      if (tabSwitch) { view.classList.add('tab-enter'); setTimeout(() => view.classList.remove('tab-enter'), 400); }
+    }
+    lastBase = base; lastRouteKey = location.hash;
+    // Tab dəyişəndə həmin tabın təzə datası arxa planda gətirilir (15 san-dan köhnədirsə).
+    if (tabSwitch && Date.now() - (UB.loadedAt || 0) > 15000) sync();
   }
   UB.render = render;
 
