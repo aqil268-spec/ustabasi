@@ -164,7 +164,7 @@ table.t tr.click { cursor: pointer; }
 table.t tr.click:hover td { background: var(--card2); }
 table.t tfoot td { font-weight: 600; border-top: 2px solid var(--line2); }
 
-.tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); }
+.tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); scroll-behavior: auto; -webkit-overflow-scrolling: touch; }
 .tabs button { min-height: 44px; padding: 0 14px; border: none; background: transparent; color: var(--muted); font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
 .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
 
@@ -188,6 +188,10 @@ table.t tfoot td { font-weight: 600; border-top: 2px solid var(--line2); }
 fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin: 0; display: flex; flex-direction: column; gap: 12px; }
 legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
 .err { color: var(--bad); font-size: 13px; }
+
+/* Sürüşmə zolaqları (scrollbar) gizlədilir: sürüşmə işləyir, zolaq görünmür */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { width: 0; height: 0; display: none; background: transparent; }
 
 /* dialog */
 dialog.dlg { border: 1px solid var(--line2); border-radius: 10px; background: var(--card); color: var(--text); padding: 0; width: min(560px, calc(100vw - 24px)); max-height: calc(100vh - 32px); }

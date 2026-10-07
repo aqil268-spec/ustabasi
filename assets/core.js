@@ -580,6 +580,37 @@
   function nowLocalIso() { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()); }
   function rid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
 
+  /**
+   * Ekrana sığmayan tab zolağı: seçilən tab görünən yerdə qalır, ekran yenidən çəkiləndə zolaq əvvələ qayıtmır.
+   * Bütün ekranlarda işləyir (tab zolağı yenidən yaranır — sürüşmə yeri bərpa olunur).
+   */
+  (function keepTabScroll() {
+    const memo = {};
+    const keyOf = el => location.hash.split('?')[0] + '|' + Array.from(el.children).map(b => b.dataset.tab || b.dataset.f || b.dataset.k || '').join(',');
+    document.addEventListener('scroll', e => {
+      const el = e.target;
+      if (el && el.classList && el.classList.contains('tabs')) memo[keyOf(el)] = el.scrollLeft;
+    }, true);
+    function fix(el) {
+      if (el.scrollWidth <= el.clientWidth) return;
+      const k = keyOf(el);
+      if (memo[k] != null) el.scrollLeft = memo[k];
+      const sel = el.querySelector('[aria-selected="true"]');
+      if (!sel) return;
+      const box = el.getBoundingClientRect(), r = sel.getBoundingClientRect();
+      const left = r.left - box.left + el.scrollLeft, right = left + r.width;
+      if (left < el.scrollLeft || right > el.scrollLeft + el.clientWidth) el.scrollLeft = Math.max(0, left - (el.clientWidth - r.width) / 2);
+      memo[k] = el.scrollLeft;
+    }
+    new MutationObserver(list => {
+      list.forEach(m => m.addedNodes.forEach(n => {
+        if (n.nodeType !== 1) return;
+        if (n.classList.contains('tabs')) fix(n);
+        else if (n.querySelector && n.querySelector('.tabs')) n.querySelectorAll('.tabs').forEach(fix);
+      }));
+    }).observe(document.documentElement, { childList: true, subtree: true });
+  })();
+
   window.UBCore = {
     CFG, LS, API, err, t, setLang, getLang, errorText,
     esc, n, round2, num, money, pad, todayISO, monthISO, shiftMonth, fmtDate, fmtTime, monthName, weekday, initials, shortName,
