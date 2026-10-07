@@ -87,7 +87,7 @@ Telefonu dəyişmək üçün (və ya şifrə unudulanda):
 
 `weeklyMail` üçün Google 2 yeni icazə soruşur: xarici sorğu (UrlFetch) və e-poçt (Mail). **Allow** basın.
 
-Arxivə köçən: davamiyyət 150 gündən köhnə, GPS rədd cəhdləri 90 gündən, audit 60 gündən köhnə.
+Arxivə köçən: davamiyyət — ayı bağlanıbsa 62 gündən, bağlanmayıbsa 150 gündən köhnə; GPS rədd cəhdləri və şübhəli link cəhdləri 90 gündən; jurnal 180 gündən köhnə.
 Vedomost üçün lazım olan qeydlər (iş, avans, vedomost) silinmir.
 
 ## Sürət
@@ -107,7 +107,7 @@ Vedomost üçün lazım olan qeydlər (iş, avans, vedomost) silinmir.
 - Ön tərəf: faylları dəyişin; `index.html` və `u.html`-də `?v=` versiyasını, `sw.js`-də `V`-ni artırın.
 - Server: `server/Code.gs`-i Apps Script-ə yenidən köçürün → **Save** → `ADMIN_*` dəyərlərini yoxlayın →
   `setup` → **Run** (yeni icazələr soruşula bilər) → **Deploy → Manage deployments → Edit (qələm) → Version: New version → Deploy**.
-  URL dəyişmir. Yoxlama: `…/exec` linkini açın — `"version":"0.3.1"` görünməlidir.
+  URL dəyişmir. Yoxlama: `…/exec` linkini açın — `"version":"0.3.4"` görünməlidir.
 
 ### Test master data
 

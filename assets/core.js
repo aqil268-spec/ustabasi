@@ -34,14 +34,16 @@
         if (!url) throw err('no_api');
         const ctl = window.AbortController ? new AbortController() : null;
         const timer = ctl ? setTimeout(() => ctl.abort(), TIMEOUT_MS) : null;
-        let text;
+        let text, status = 0;
         try {
           const res = await fetch(url, { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: ctl ? ctl.signal : undefined });
+          status = res.status;
           text = await res.text();
         } catch (e) { throw err('network'); }
         finally { if (timer) clearTimeout(timer); }
         size = text.length;
-        try { j = JSON.parse(text); } catch (e) { throw err('server'); }
+        // Google kvota və ya yük səhifəsi (HTML) qaytaranda: "server məşğuldur" (connection testi).
+        try { j = JSON.parse(text); } catch (e) { throw err(status >= 500 || /too many|quota|limit/i.test(text) ? 'busy' : 'server'); }
       }
       const rec = { action: body.action, ms: Math.round(performance.now() - t0), server: j && j.ms, reads: j && j.db ? j.db.reads : null, cached: j && j.db ? j.db.cached : null, kb: Math.round(size / 102.4) / 10, at: Date.now() };
       this.log.unshift(rec); if (this.log.length > 30) this.log.length = 30;

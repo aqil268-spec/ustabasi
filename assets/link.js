@@ -98,6 +98,10 @@
 
   function handleErr(err, btn, label) {
     const map = { link_used: 'used', link_expired: 'expired', link_cancelled: 'cancelled' };
+    // Cavab itəndə (zəif internet) usta yenidən basır: link artıq istifadə olunub — nəticəni serverdən götürürük.
+    if (err.code === 'link_used' || err.code === 'already_in' || err.code === 'already_out') {
+      return call('tokenInfo').then(fresh => { info = fresh; info.used = true; render(); }).catch(() => { info.used = true; render(); });
+    }
     if (map[err.code]) { info[map[err.code]] = true; return render(); }
     if (err.code === 'link_other_device') return stateMsg(t('u_other_device_title'), t('u_other_device_text'), 'bad');
     if (err.code === 'link_staff_device') return stateMsg(t('u_staff_device_title'), t('u_staff_device_text'), 'bad');
@@ -206,6 +210,11 @@
       if (err.code === 'link_other_device') return stateMsg(t('u_other_device_title'), t('u_other_device_text'), 'bad');
       if (err.code === 'link_staff_device') return stateMsg(t('u_staff_device_title'), t('u_staff_device_text'), 'bad');
       stateMsg(t('err_title'), C.errorText(err), 'bad');
+      // Zəif internet: "Yenidən cəhd et" düyməsi (connection testi)
+      if (err.code === 'network' || err.code === 'busy' || err.code === 'server') {
+        const box = root().querySelector('.link-page > div:last-child');
+        if (box) { box.insertAdjacentHTML('beforeend', '<button type="button" class="btn primary big" id="retry">' + esc(t('u_try_again')) + '</button>'); document.getElementById('retry').addEventListener('click', start); }
+      }
     }
   }
   start();

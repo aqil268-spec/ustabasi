@@ -3,7 +3,7 @@
   'use strict';
   const C = window.UBCore;
   const { t, esc, icon, logo, API, LS } = C;
-  const VERSION = '0.3.3';
+  const VERSION = '0.3.4';
   const SNAP = 'ub_snap';
   const SNAP_MAX_MS = 24 * 3600 * 1000;   // 1 gün giriş olmasa telefondakı data silinir (K-15, K-17)
   // Offline-da yalnız bunlar növbəyə düşür (S-45). Server yoxlaması tələb edənlər yalnız onlayn.
@@ -110,7 +110,7 @@
           await API.call(item.action, Object.assign({}, item.params, { cid: item.id, offlineAt: item.created }));
           await C.Q.del(item.id); sent++;
         } catch (e) {
-          if (e.code === 'network') break;
+          if (e.code === 'network' || e.code === 'busy') break;
           if (e.code === 'auth') break;
           item.error = e.code || 'server'; if (e.code === 'offline_expired') item.expired = true;
           await C.Q.put(item); failed++;
@@ -136,7 +136,7 @@
     }
     try { return await API.call(action, body); }
     catch (e) {
-      if (queueable && e.code === 'network') return enqueue(action, Object.assign(body, { _label: label || '' }));
+      if (queueable && (e.code === 'network' || e.code === 'busy')) return enqueue(action, Object.assign(body, { _label: label || '' }));
       if (e.code === 'must_change') { renderPassword(true); }
       throw e;
     }

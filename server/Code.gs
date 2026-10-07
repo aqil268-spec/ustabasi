@@ -1,5 +1,5 @@
 /**
- * Master — server (Google Apps Script), v0.3.1
+ * Master — server (Google Apps Script), v0.3.4
  * Ayrıca (standalone) layihədə və Sheet-ə bağlı layihədə işləyir.
  * Sheet yoxdursa, setup() "Master — data" adlı Sheet-i özü yaradır.
  *
@@ -85,6 +85,12 @@ const DEFAULT_SETTINGS = {
   backupEmail: ''
 };
 
+// Daxil edilən datanın sərhədləri (təhlükəsizlik testi)
+const MAX_CELL = 45000;
+const MAX_AMOUNT = 1000000;      // bir əməliyyat: avans, ödəniş, xərc, cərimə (₼)
+const MAX_QTY = 1000000;         // iş həcmi
+const MAX_NAME = 150;            // ad, ünvan və s.
+
 const SEED_WORK_TYPES = [
   ['Kafel döşəmə', 'm²'], ['Suvaq', 'm²'], ['Şpaklyovka', 'm²'], ['Boya', 'm²'],
   ['Alçıpan', 'm²'], ['Laminat', 'm²'], ['Plintus', 'm'], ['Elektrik nöqtəsi', 'ədəd'], ['Santexnika nöqtəsi', 'ədəd']
@@ -122,7 +128,8 @@ function validPassword(p) {
 
 /** Sheets-də düstur kimi işləyə biləcək mətn qorunur (T-07). */
 function safeCell(v) {
-  const s = v === undefined || v === null ? '' : String(v);
+  let s = v === undefined || v === null ? '' : String(v);
+  if (s.length > MAX_CELL) s = s.slice(0, MAX_CELL);   // Sheets xanası 50 000 simvoldan çox götürmür
   return /^[=+\-@]/.test(s) && !/^[+-]?\d/.test(s) ? "'" + s : s;
 }
 
@@ -361,7 +368,7 @@ function splitCostBySite(lines, attendance, entries, shares, month) {
 // Sətri dəyişməzdən/silməzdən əvvəl həmin sətir Sheet-dən təzə oxunur və
 // yoxlanır — keş köhnə olsa belə, səhv sətrə yazılmır.
 
-const VERSION = '0.3.1';
+const VERSION = '0.3.4';
 const TZ = 'Asia/Baku';
 const CACHE_TTL = 21600;      // 6 saat (CacheService maksimumu)
 const CHUNK = 30000;          // 1 keş açarı < 100 KB (UTF-8-də də)
@@ -624,6 +631,23 @@ function settings() {
   const s = Object.assign({}, DEFAULT_SETTINGS);
   DB.all('Settings').forEach(r => { s[r.key] = r.value; });
   return s;
+}
+
+/** Jurnalın sonundan oxuyur: bütün vərəqi oxumur (stress testi: 1 ildə 300 000 sətir ola bilər). */
+function auditTail(from) {
+  const sh = DB.sheet('AuditLog'), head = SCHEMA.AuditLog;
+  SpreadsheetApp.flush();
+  let end = sh.getLastRow(), out = [];
+  const BLOCK = 5000, MAX = 60000;
+  while (end >= 2 && out.length < MAX) {
+    const start = Math.max(2, end - BLOCK + 1);
+    const vals = sh.getRange(start, 1, end - start + 1, head.length).getValues();
+    const rows = vals.map(v => { const o = {}; head.forEach((h, j) => { o[h] = normCell(v[j], h); }); return o; }).filter(o => o.ts);
+    out = rows.concat(out);
+    if (!rows.length || String(rows[0].ts) < from) break;
+    end = start - 1;
+  }
+  return out;
 }
 
 /** Jurnal (BR-46, NFR-16). details: köhnə və yeni dəyər, əlavə məlumat. */
@@ -940,8 +964,11 @@ function cleanup() {
     prune('Tokens', r => String(r.created).slice(0, 10) < daysAgo(14), false);
     prune('GeoRejects', r => String(r.ts).slice(0, 10) < daysAgo(90), true);
     prune('LinkAttempts', r => String(r.ts).slice(0, 10) < daysAgo(90), true);
-    prune('AuditLog', r => String(r.ts).slice(0, 10) < daysAgo(365), true);
-    prune('Attendance', r => String(r.date) < daysAgo(150) && ['PENDING', 'RETURNED'].indexOf(r.status) < 0, true);
+    prune('AuditLog', r => String(r.ts).slice(0, 10) < daysAgo(180), true);
+    // Davamiyyət: ayı bağlanıbsa 62 gündən, bağlanmayıbsa 150 gündən köhnə qeydlər arxivə (stress testi).
+    const closed = {}; DB.all('Periods').forEach(p => { if (p.status === 'CLOSED') closed[p.month] = 1; });
+    const d62 = daysAgo(62), d150 = daysAgo(150);
+    prune('Attendance', r => ['PENDING', 'RETURNED'].indexOf(r.status) < 0 && (String(r.date) < d150 || (String(r.date) < d62 && closed[monthOf(r.date)])), true);
     DB.commit();
   } finally { lock.releaseLock(); }
 }
@@ -1145,7 +1172,9 @@ function doPost(e) {
     return ContentService.createTextOutput(out).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     const msg = String(err && err.message || err);
-    return json({ ok: false, error: msg.indexOf(' ') < 0 ? msg.split(':')[0] : 'server', detail: msg, ms: Date.now() - t0 });
+    // Növbə çox uzananda (eyni anda çox yazı) — istifadəçiyə "yenidən basın" deyilir (stress testi).
+    const code = /lock timeout|waiting for lock|too many simultaneous|service invoked too many/i.test(msg) ? 'busy' : (msg.indexOf(' ') < 0 ? msg.split(':')[0] : 'server');
+    return json({ ok: false, error: code, detail: msg, ms: Date.now() - t0 });
   } finally {
     if (lock) { try { DB.commit(); } finally { lock.releaseLock(); } }
   }
@@ -1212,6 +1241,8 @@ function logAttempt(t, reason, b) {
 function checkDevice(t, b) {
   if (staffSession(b.st)) { logAttempt(t, 'staff_device', b); fail('link_staff_device'); }
   const d = String(b.d || '').slice(0, 64);
+  // Cihaz ID-si olmayan sorğu linki bağlamadan aça bilərdi (təhlükəsizlik testi).
+  if (d.length < 8) { logAttempt(t, 'no_device', b); fail('link_other_device'); }
   if (t.deviceId && d !== t.deviceId) { logAttempt(t, 'other_device', b); fail('link_other_device'); }
   if (!t.deviceId && !t.usedAt && !t.cancelledAt && t.expires >= nowIso() && d) {
     DB.update('Tokens', t, { deviceId: d, openedAt: nowIso() });
@@ -1366,6 +1397,7 @@ const PUBLIC = {
 
     // IN / OUT: GPS yoxlaması
     if (b.lat === undefined || b.lng === undefined || b.lat === null) fail('no_gps');
+    if (!isFinite(Number(b.lat)) || !isFinite(Number(b.lng)) || Math.abs(Number(b.lat)) > 90 || Math.abs(Number(b.lng)) > 180) fail('no_gps');
     const dist = distanceM(b.lat, b.lng, site.lat, site.lng);
     const radius = num(site.radius) || num(settings().defaultRadius) || 150;
     if (dist > radius) {
@@ -1475,7 +1507,9 @@ const COMMON = {
     const eIds = {}; entries.forEach(e => { eIds[e.id] = 1; });
     const openMoney = s => MONEY_FINAL.indexOf(s) < 0;
     const advances = DB.all('Advances').filter(a => (admin || wIds[a.workerId]) && (String(a.created) >= from40 || openMoney(a.status))).map(strip);
-    const payments = DB.all('CustomerPayments').filter(p => (admin || sIds[p.siteId]) && (String(p.created || p.date) >= from40 || openMoney(p.status) || admin)).map(strip);
+    // Admin: son 90 gün + açıq qeydlər (stress testi: 2 ildə cavab 1.4 MB olurdu). Obyektin cəmi siteResult-dadır.
+    const from90 = daysAgo(90);
+    const payments = DB.all('CustomerPayments').filter(p => (admin || sIds[p.siteId]) && (String(p.created || p.date) >= (admin ? from90 : from40) || openMoney(p.status))).map(strip);
     const expenses = DB.all('Expenses').filter(x => (admin || sIds[x.siteId]) && (String(x.date) >= from40 || ['PENDING', 'RETURNED'].indexOf(x.status) >= 0)).map(strip);
     // Pul linklərinin son vəziyyəti (link vaxtı, açılıb-açılmadığı)
     const refIds = {}; advances.forEach(a => { refIds[a.id] = 1; }); payments.forEach(p => { refIds[p.id] = 1; });
@@ -1508,7 +1542,7 @@ const COMMON = {
       workTypes: DB.all('WorkTypes').filter(x => x.active !== 'no').map(strip),
       estimates: DB.all('Estimates').filter(x => admin || sIds[x.siteId]).map(strip),
       payments, expenses, advances, links, activeLinks, linkWarnings, attempts,
-      attendance: DB.all('Attendance').filter(a => (a.date >= from3 || ['PENDING', 'RETURNED'].indexOf(a.status) >= 0) && (admin || wIds[a.workerId])).map(strip),
+      attendance: DB.all('Attendance').filter(a => (a.date >= (admin ? today : from3) || ['PENDING', 'RETURNED'].indexOf(a.status) >= 0) && (admin || wIds[a.workerId])).map(strip),   // admin yalnız bu günü göstərir
       entries,
       shares: DB.all('WorkShares').filter(s => eIds[s.entryId]).map(strip),
       planDays: DB.all('PlanDays').map(strip),
@@ -1545,7 +1579,8 @@ const COMMON = {
     const admin = u.role === 'admin';
     if (c.id) {
       const row = DB.find('Customers', 'id', c.id); if (!row) fail('not_found');
-      const patch = { name: c.name, type: c.type || 'person', voen, lang };
+      if (!admin && row.by !== u.id && !DB.all('Sites').some(s => s.customerId === row.id && s.foremanId === u.id)) fail('forbidden');
+      const patch = { name: nameOf(c.name), type: c.type || 'person', voen, lang };
       const phone = cleanPhone(c.phone);
       if (admin) { patch.phone = phone; patch.pendingPhone = ''; }
       else if (phone !== row.phone) {
@@ -1555,7 +1590,7 @@ const COMMON = {
       upd(u, 'Customers', row, patch);
       return row;
     }
-    const row = DB.insert('Customers', { id: uid('C'), name: c.name, phone: cleanPhone(c.phone), type: c.type || 'person', voen, lang, created: nowIso(), by: u.id });
+    const row = DB.insert('Customers', { id: uid('C'), name: nameOf(c.name), phone: cleanPhone(c.phone), type: c.type || 'person', voen, lang, created: nowIso(), by: u.id });
     audit(u, 'Customers', row.id, 'create', { name: c.name });
     return row;
   },
@@ -1563,7 +1598,7 @@ const COMMON = {
   saveSite(b, u) {
     const s = b.site || {};
     if (!String(s.name || '').trim() || !s.customerId) fail('required');
-    if (!isFinite(Number(s.lat)) || !isFinite(Number(s.lng)) || s.lat === '' || s.lng === '') fail('no_coords');
+    if (!isFinite(Number(s.lat)) || !isFinite(Number(s.lng)) || s.lat === '' || s.lng === '' || Math.abs(Number(s.lat)) > 90 || Math.abs(Number(s.lng)) > 180) fail('no_coords');
     const st = settings();
     const radius = Math.min(500, Math.max(50, num(s.radius) || num(st.defaultRadius)));
     const admin = u.role === 'admin';
@@ -1577,7 +1612,7 @@ const COMMON = {
       const row = DB.find('Sites', 'id', s.id); if (!row) fail('not_found');
       if (!admin && row.foremanId !== u.id && row.by !== u.id) fail('forbidden');
       const keep = String(row.photos || '').split(' ').filter(Boolean);
-      const patch = { name: s.name, address: s.address || '', lat: s.lat, lng: s.lng, radius, customerId: s.customerId };
+      const patch = { name: nameOf(s.name), address: nameOf(s.address), lat: s.lat, lng: s.lng, radius, customerId: s.customerId };
       if (photoPatch.photos) { patch.photos = keep.concat(photoPatch.photos).slice(-5).join(' '); if (photoPatch.photoLat !== undefined) { patch.photoLat = photoPatch.photoLat; patch.photoLng = photoPatch.photoLng; } }
       if (admin) Object.assign(patch, { foremanId: s.foremanId || row.foremanId, contractNo: s.contractNo || '', contractDate: s.contractDate || '', contractAmount: s.contractAmount || '', status: s.status || row.status });
       else {
@@ -1593,7 +1628,7 @@ const COMMON = {
     }
     if (!admin && newPhotos.length < num(st.siteMinPhotos)) fail('photo_required');
     const row = DB.insert('Sites', {
-      id: uid('S'), customerId: s.customerId, name: s.name, address: s.address || '', lat: s.lat, lng: s.lng, radius,
+      id: uid('S'), customerId: s.customerId, name: nameOf(s.name), address: nameOf(s.address), lat: s.lat, lng: s.lng, radius,
       foremanId: admin ? (s.foremanId || '') : u.id, status: admin ? 'APPROVED' : 'PENDING',
       contractNo: s.contractNo || '', contractDate: s.contractDate || '', contractAmount: s.contractAmount || '',
       created: nowIso(), approvedBy: admin ? u.id : '', approvedAt: admin ? nowIso() : '',
@@ -1630,6 +1665,19 @@ const COMMON = {
 };
 
 // ---------------------------------------------------------------- FOREMAN (admin da istifadə edə bilər)
+/** Tarix: YYYY-MM-DD, real tarix, gələcəkdə deyil (BR-NFR, təhlükəsizlik testi). */
+function validDay(v, allowFuture) {
+  const d = dateOf(v || todayStr());
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) fail('bad_date');
+  const t = new Date(d + 'T00:00:00Z');
+  if (isNaN(t.getTime()) || t.toISOString().slice(0, 10) !== d) fail('bad_date');
+  if (!allowFuture && d > todayStr()) fail('bad_date');
+  if (d < '2020-01-01') fail('bad_date');
+  return d;
+}
+function validAmount(v) { const a = round2(v); if (!(a > 0) || a > MAX_AMOUNT) fail('bad_amount'); return a; }
+function nameOf(v) { return String(v === undefined || v === null ? '' : v).trim().slice(0, MAX_NAME); }
+
 function ownsWorker(u, w) { return u.role === 'admin' || (w && w.foremanId === u.id); }
 function ownsSite(u, s) { return u.role === 'admin' || (s && s.foremanId === u.id); }
 
@@ -1677,10 +1725,10 @@ const FOREMAN = {
     const w = DB.find('Workers', 'id', b.workerId);
     const site = DB.find('Sites', 'id', b.siteId);
     if (!w || !site) fail('not_found');
-    if (!ownsWorker(u, w)) fail('forbidden');
+    if (!ownsWorker(u, w) || !ownsSite(u, site)) fail('forbidden');
     if (['IN', 'OUT'].indexOf(b.kind) < 0) fail('bad_kind');
     if (!String(b.reason || '').trim()) fail('required');
-    const date = dateOf(b.date || todayStr());
+    const date = validDay(b.date);
     assertOpen(date);
     const time = /^\d{2}:\d{2}$/.test(String(b.time)) ? b.time : nowIso().slice(11, 16);
     const ref = minutesOf(b.kind === 'IN' ? w.startTime : w.endTime);
@@ -1713,26 +1761,30 @@ const FOREMAN = {
     if (!site || !wt) fail('not_found');
     if (!ownsSite(u, site)) fail('forbidden');
     if (site.status !== 'APPROVED') fail('site_not_approved');
-    if (!(num(e.qty) > 0)) fail('bad_qty');
+    if (!(num(e.qty) > 0) || num(e.qty) > MAX_QTY) fail('bad_qty');
     const shares = (b.shares || []).filter(s => s.workerId && num(s.share) > 0);
     if (!shares.length) fail('no_shares');
+    if (new Set(shares.map(s => String(s.workerId))).size !== shares.length) fail('dup_worker');
     const sum = shares.reduce((a, s) => a + num(s.share), 0);
     if (Math.abs(sum - 100) > 0.5) fail('shares_not_100');
-    const date = dateOf(e.date || todayStr());
+    const date = validDay(e.date);
     assertOpen(date);
-    const photos = uploadPhotos(b.photos, date + '_' + site.id, 5);
-
     let entry;
     if (e.id) {
       entry = DB.find('WorkEntries', 'id', e.id); if (!entry) fail('not_found');
+      if (u.role !== 'admin' && entry.foremanId !== u.id) fail('forbidden');
+    }
+    const photos = uploadPhotos(b.photos, date + '_' + site.id, 5);
+
+    if (e.id) {
       if (['APPROVED', 'REJECTED', 'ADMIN_PENDING'].indexOf(entry.status) >= 0) fail('already_approved');
       const keep = (entry.photos ? String(entry.photos).split(' ') : []).filter(Boolean);
-      upd(u, 'WorkEntries', entry, { date, siteId: site.id, workTypeId: wt.id, qty: num(e.qty), note: e.note || '', photos: keep.concat(photos).join(' '), status: 'USTA_PENDING', returnReason: '' });
+      upd(u, 'WorkEntries', entry, { date, siteId: site.id, workTypeId: wt.id, qty: num(e.qty), note: String(e.note || '').slice(0, 500), photos: keep.concat(photos).join(' '), status: 'USTA_PENDING', returnReason: '' });
       const old = DB.all('WorkShares').filter(s => s.entryId === entry.id).sort((a, c) => c._row - a._row);
       old.forEach(s => DB.remove('WorkShares', s));
       cancelTokens('WORK', entry.id);   // köhnə linklərlə yeni versiya təsdiqlənməsin
     } else {
-      entry = DB.insert('WorkEntries', { id: uid('E'), date, siteId: site.id, workTypeId: wt.id, qty: num(e.qty), photos: photos.join(' '), note: e.note || '', status: 'USTA_PENDING', returnReason: '', foremanId: site.foremanId, created: nowIso(), approvedBy: '', approvedAt: '' });
+      entry = DB.insert('WorkEntries', { id: uid('E'), date, siteId: site.id, workTypeId: wt.id, qty: num(e.qty), photos: photos.join(' '), note: String(e.note || '').slice(0, 500), status: 'USTA_PENDING', returnReason: '', foremanId: site.foremanId, created: nowIso(), approvedBy: '', approvedAt: '' });
       audit(u, 'WorkEntries', entry.id, 'create', { qty: e.qty, shares });
     }
     const ttlMin = (num(settings().workLinkHours) || 24) * 60;
@@ -1766,8 +1818,7 @@ const FOREMAN = {
   requestAdvance(b, u) {
     const w = DB.find('Workers', 'id', b.workerId); if (!w) fail('not_found');
     if (!ownsWorker(u, w)) fail('forbidden');
-    const amount = round2(b.amount);
-    if (!(amount > 0)) fail('bad_amount');
+    const amount = validAmount(b.amount);
     const month = todayStr().slice(0, 7);
     const st = settings();
     const plan = num((DB.find('PlanDays', 'month', month) || {}).days) || 22;
@@ -1777,6 +1828,7 @@ const FOREMAN = {
     const over = limit > 0 ? used + amount > limit : w.payModel !== 'BONUS';
     if (b.id) {
       const a = DB.find('Advances', 'id', b.id); if (!a) fail('not_found');
+      if (a.workerId !== w.id) fail('forbidden');
       if (a.status !== 'RETURNED') fail('bad_status');
       upd(u, 'Advances', a, { amount, reason: String(b.reason || '').slice(0, 200), status: 'PENDING', overLimit: over ? 'yes' : '', returnReason: '', confirmedAmount: '', confirmedAt: '' }, 'fix');
       return Object.assign({}, a, { limit, used: round2(used) });
@@ -1827,11 +1879,13 @@ const FOREMAN = {
     const site = DB.find('Sites', 'id', p.siteId);
     if (!site || !(num(p.amount) > 0)) fail('required');
     if (!ownsSite(u, site)) fail('forbidden');
+    validAmount(p.amount);
     const admin = u.role === 'admin';
-    const date = dateOf(p.date || todayStr());
+    const date = validDay(p.date);
     const method = ['CASH', 'TRANSFER'].indexOf(p.method) >= 0 ? p.method : 'CASH';
     if (p.id) {
       const row = DB.find('CustomerPayments', 'id', p.id); if (!row) fail('not_found');
+      if (!ownsSite(u, DB.find('Sites', 'id', row.siteId))) fail('forbidden');
       if (row.status !== 'RETURNED' && !(admin && row.status === 'PENDING')) fail('bad_status');
       upd(u, 'CustomerPayments', row, { amount: round2(p.amount), date, method, note: String(p.note || '').slice(0, 200), status: 'PENDING', returnReason: '', confirmedAmount: '', confirmedAt: '' }, 'fix');
       return row;
@@ -1851,8 +1905,9 @@ const FOREMAN = {
     const site = DB.find('Sites', 'id', x.siteId);
     if (!site || !(num(x.amount) > 0) || !String(x.category || '').trim()) fail('required');
     if (!ownsSite(u, site)) fail('forbidden');
+    validAmount(x.amount);
     const admin = u.role === 'admin';
-    const date = dateOf(x.date || todayStr());
+    const date = validDay(x.date);
     assertOpen(date);
     const photos = uploadPhotos(b.photos, 'xerc_' + date + '_' + site.id, 3);
     if (x.id) {
@@ -1982,7 +2037,7 @@ const ADMIN = {
     if (!String(f.name || '').trim() || !cleanPhone(f.phone)) fail('required');
     const users = DB.all('Users');
     if (users.some(x => x.phone === cleanPhone(f.phone) && x.id !== f.id && x.status !== 'deleted')) fail('phone_taken');
-    const patch = { name: f.name, phone: cleanPhone(f.phone), lang: ['az', 'ru', 'en', 'tr'].indexOf(f.lang) >= 0 ? f.lang : 'az', status: f.status || 'active', payType: f.payType || 'MONTH', payModel: f.payModel || 'STD', baseAmount: num(f.baseAmount), bonusPercent: num(f.bonusPercent) };
+    const patch = { name: nameOf(f.name), phone: cleanPhone(f.phone), lang: ['az', 'ru', 'en', 'tr'].indexOf(f.lang) >= 0 ? f.lang : 'az', status: f.status || 'active', payType: f.payType || 'MONTH', payModel: f.payModel || 'STD', baseAmount: num(f.baseAmount), bonusPercent: num(f.bonusPercent) };
     const pw = f.password || '';
     if (pw && !validPassword(pw)) fail('weak_password');
     if (f.id) {
@@ -2020,7 +2075,7 @@ const ADMIN = {
     if (!String(w.name || '').trim() || !cleanPhone(w.phone) || !w.foremanId) fail('required');
     const st = settings();
     const patch = {
-      name: w.name, phone: cleanPhone(w.phone), foremanId: w.foremanId, specialty: w.specialty || '', grade: w.grade || 'master',
+      name: nameOf(w.name), phone: cleanPhone(w.phone), foremanId: w.foremanId, specialty: nameOf(w.specialty), grade: w.grade || 'master',
       payType: w.payType === 'DAY' ? 'DAY' : 'MONTH', baseAmount: num(w.baseAmount), payModel: w.payModel || 'STD',
       startTime: w.startTime || '09:00', endTime: w.endTime || '18:00',
       lang: ['az', 'ru', 'en', 'tr'].indexOf(w.lang) >= 0 ? w.lang : 'az', status: w.status || 'active'
@@ -2075,7 +2130,7 @@ const ADMIN = {
     const t = b.workType || {};
     if (!String(t.name || '').trim()) fail('required');
     const normType = ['MONTH', 'DAY'].indexOf(t.normType) >= 0 ? t.normType : '';
-    const patch = { name: t.name, unit: t.unit || 'm²', normType, normQty: normType ? num(t.normQty) : '', active: t.active === 'no' ? 'no' : 'yes' };
+    const patch = { name: nameOf(t.name), unit: nameOf(t.unit || 'm²').slice(0, 20), normType, normQty: normType ? num(t.normQty) : '', active: t.active === 'no' ? 'no' : 'yes' };
     if (t.id) { const row = DB.find('WorkTypes', 'id', t.id); if (!row) fail('not_found'); upd(u, 'WorkTypes', row, patch); return row; }
     const row = DB.insert('WorkTypes', Object.assign({ id: uid('T'), bonusType: 'AZN', rateHelper: 0, rateMaster: 0, rateSenior: 0, percent: 0 }, patch)); audit(u, 'WorkTypes', row.id, 'create', patch); return row;
   },
@@ -2092,7 +2147,8 @@ const ADMIN = {
   addDeduction(b, u) {
     const d = b.deduction || {};
     if (!d.workerId || !num(d.amount)) fail('required');
-    const date = dateOf(d.date || todayStr());
+    if (Math.abs(num(d.amount)) > MAX_AMOUNT) fail('bad_amount');
+    const date = validDay(d.date);
     assertOpen(date);
     const type = ['PENALTY', 'CORRECTION', 'OTHER'].indexOf(d.type) >= 0 ? d.type : 'PENALTY';
     const row = DB.insert('Deductions', { id: uid('D'), workerId: d.workerId, type, amount: round2(d.amount), reason: String(d.reason || '').slice(0, 200), date, by: u.id, category: String(d.category || '').slice(0, 60) });
@@ -2224,10 +2280,9 @@ const ADMIN = {
 
   /** Jurnal (BR-46): filtr — istifadəçi, tarix, əməliyyat, mətn. */
   auditLog(b) {
-    DB.load(['AuditLog']);
     const from = String(b.from || daysAgo(7)), to = String(b.to || todayStr()) + 'T99';
     const q = String(b.q || '').toLowerCase();
-    let list = DB.all('AuditLog').filter(r => String(r.ts) >= from && String(r.ts) <= to);
+    let list = auditTail(from).filter(r => String(r.ts) >= from && String(r.ts) <= to);
     if (b.userId) list = list.filter(r => r.userId === b.userId);
     if (b.act) list = list.filter(r => String(r.action).indexOf(b.act) === 0);
     if (q) list = list.filter(r => (r.sheet + ' ' + r.rowId + ' ' + r.action + ' ' + r.details).toLowerCase().indexOf(q) >= 0);
