@@ -1,4 +1,4 @@
-# Ustabaşı
+# Master
 
 Təmir ustalarının, sahə rəislərinin və obyektlərin idarəetmə tətbiqi. BRD v0.3 əsasında, dizayn A ("Sahə").
 
@@ -32,7 +32,7 @@ Təmir ustalarının, sahə rəislərinin və obyektlərin idarəetmə tətbiqi.
 4. Kodun əvvəlində 3 sətri dəyişin: `ADMIN_NAME`, `ADMIN_PHONE`, `ADMIN_PASSWORD`. **Save** basın.
 5. Yuxarıda funksiya siyahısında `setup` seçin → **Run**.
    İcazə pəncərəsi: **Review permissions** → hesabınız → **Advanced** → **Go to … (unsafe)** → **Allow**.
-   `setup` "Ustabaşı — data" adlı Google Sheet-i özü yaradır. Linki **Execution log**-da görünür.
+   `setup` "Master — data" adlı Google Sheet-i özü yaradır. Linki **Execution log**-da görünür.
    `setup` 5 avtomatik işi (trigger) də qurur — bax "Avtomatik işlər".
 6. **Deploy → New deployment** → ⚙ → **Web app**:
    - Execute as: **Me**
@@ -71,7 +71,7 @@ Telefonu dəyişmək üçün (və ya şifrə unudulanda):
 1. Kodun əvvəlində `ADMIN_PHONE` və `ADMIN_PASSWORD`-u yazın → **Save**.
 2. Funksiya siyahısında `setAdminLogin` seçin → **Run**.
 
-`setAdminLogin` nümunə dəyərlərlə (`994500000000` / `Ustabasi#2026`) işləmir — səhvən sıfırlanmasın deyə.
+`setAdminLogin` nümunə dəyərlərlə (`994500000000` / `Master#2026`) işləmir — səhvən sıfırlanmasın deyə.
 
 ### 5. Avtomatik işlər
 
@@ -80,8 +80,8 @@ Telefonu dəyişmək üçün (və ya şifrə unudulanda):
 | Funksiya | Nə vaxt | Nə edir |
 | --- | --- | --- |
 | `onSheetChange` | Sheet əl ilə dəyişəndə | Keşi yeniləyir — tətbiq dəyişikliyi dərhal görür |
-| `dailyBackup` | Hər gecə 02:00 | Sheet-in surəti "Ustabaşı — ehtiyat surətləri" qovluğuna; son 14 surət qalır |
-| `cleanup` | Hər gecə 03:00 | Köhnə sessiya və linkləri silir; köhnə qeydləri "Ustabaşı — arxiv" Sheet-inə köçürür |
+| `dailyBackup` | Hər gecə 02:00 | Sheet-in surəti "Master — ehtiyat surətləri" qovluğuna; son 14 surət qalır |
+| `cleanup` | Hər gecə 03:00 | Köhnə sessiya və linkləri silir; köhnə qeydləri "Master — arxiv" Sheet-inə köçürür |
 | `hourly` | Hər saat | Vaxtı bitən linkləri bağlayır (avans və ödəniş linkləri "Link vaxtı bitdi" olur) |
 | `weeklyMail` | 7 gündən bir, 04:00 | Sheet-in Excel surətini e-poçta göndərir (Ayarlar-dakı ehtiyat e-poçtu və ya sizin hesab) |
 
@@ -107,7 +107,18 @@ Vedomost üçün lazım olan qeydlər (iş, avans, vedomost) silinmir.
 - Ön tərəf: faylları dəyişin; `index.html` və `u.html`-də `?v=` versiyasını, `sw.js`-də `V`-ni artırın.
 - Server: `server/Code.gs`-i Apps Script-ə yenidən köçürün → **Save** → `ADMIN_*` dəyərlərini yoxlayın →
   `setup` → **Run** (yeni icazələr soruşula bilər) → **Deploy → Manage deployments → Edit (qələm) → Version: New version → Deploy**.
-  URL dəyişmir. Yoxlama: `…/exec` linkini açın — `"version":"0.3.0"` görünməlidir.
+  URL dəyişmir. Yoxlama: `…/exec` linkini açın — `"version":"0.3.1"` görünməlidir.
+
+### Test master data
+
+Satışdan əvvəl nümayiş və ya test üçün:
+
+1. Apps Script-də `seedTestData` seçin → **Run**.
+   Yazılır: 3 sahə rəisi, 10 usta (AZ, RU, TR dilli), 5 müştəri (fərdi və şirkət), Bakıda 5 təsdiqli obyekt, iş növlərinin normaları, 19 smeta sətri.
+2. Sahə rəisi girişi: telefon `994509990001`, `994509990002`, `994509990003` · müvəqqəti şifrə `Test#2026` (ilk girişdə yenisi yaradılır).
+3. Test datanı silmək üçün: `removeTestData` → **Run**. Bu data ilə yaranan qeydlər (davamiyyət, iş, avans, ödəniş) də silinir.
+
+Test telefonları uydurmadır. Ustalara və müştərilərə link göndərmək üçün nömrələri öz test telefonlarınızla dəyişin.
 
 ### v0.2 → v0.3 keçidi
 

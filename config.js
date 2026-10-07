@@ -1,5 +1,5 @@
 /*
- * Ustabaşı — tətbiq ayarları.
+ * Master — tətbiq ayarları.
  * API_URL: Google Apps Script web app ünvanı (…/exec). Boş qalsa, assets/core.js-dəki ünvan istifadə olunur.
  * APP_URL: tətbiqin ünvanı (GitHub Pages). Boş qalsa, avtomatik təyin olunur.
  */

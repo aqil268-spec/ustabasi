@@ -1,7 +1,7 @@
 /**
- * Ustabaşı — server (Google Apps Script), v0.3.0
+ * Master — server (Google Apps Script), v0.3.1
  * Ayrıca (standalone) layihədə və Sheet-ə bağlı layihədə işləyir.
- * Sheet yoxdursa, setup() "Ustabaşı — data" adlı Sheet-i özü yaradır.
+ * Sheet yoxdursa, setup() "Master — data" adlı Sheet-i özü yaradır.
  *
  * Quraşdırma (qısa):
  *  1. Aşağıdakı ADMIN_* dəyərlərini dəyişin və yadda saxlayın.
@@ -20,12 +20,14 @@
  *  dailyBackup    — Sheet-in ehtiyat surəti (hər gecə avtomatik)
  *  hourly         — vaxtı keçən linkləri bağlayır (hər saat avtomatik)
  *  weeklyMail     — Sheet-in Excel surətini adminin e-poçtuna göndərir (həftədə 1 dəfə avtomatik)
+ *  seedTestData   — test master data yazır (sahə rəisləri, ustalar, müştərilər, obyektlər, normalar, smetalar)
+ *  removeTestData — seedTestData-nın yazdığı datanı silir
  */
 
 // ---- 1. Birinci admin (setup-dan əvvəl dəyişin) ----
 const ADMIN_NAME = 'Admin';
 const ADMIN_PHONE = '994500000000';      // yalnız rəqəm
-const ADMIN_PASSWORD = 'Ustabasi#2026';  // müvəqqəti şifrə: ilk girişdə yenisi yaradılır
+const ADMIN_PASSWORD = 'Master#2026';  // müvəqqəti şifrə: ilk girişdə yenisi yaradılır
 
 // ---- 2. Sxem ----
 // Diqqət: yeni sütunlar yalnız SONA əlavə olunur — köhnə data yerində qalır.
@@ -76,7 +78,7 @@ const DEFAULT_SETTINGS = {
   photoWarnM: '200',
   expenseCategories: 'Material,Nəqliyyat,Alət icarəsi,Zibil daşınması,Subpodratçı,Digər',
   penaltyTypes: 'Gecikmə,İşə gəlməmə,Keyfiyyətsiz iş,Material zərəri,Alət itkisi,Təhlükəsizlik qaydasının pozulması,Digər',
-  companyName: 'Ustabaşı',
+  companyName: 'Master',
   companyVoen: '',
   companyPhone: '',
   companyAddress: '',
@@ -359,7 +361,7 @@ function splitCostBySite(lines, attendance, entries, shares, month) {
 // Sətri dəyişməzdən/silməzdən əvvəl həmin sətir Sheet-dən təzə oxunur və
 // yoxlanır — keş köhnə olsa belə, səhv sətrə yazılmır.
 
-const VERSION = '0.3.0';
+const VERSION = '0.3.1';
 const TZ = 'Asia/Baku';
 const CACHE_TTL = 21600;      // 6 saat (CacheService maksimumu)
 const CHUNK = 30000;          // 1 keş açarı < 100 KB (UTF-8-də də)
@@ -663,7 +665,7 @@ function setup() {
   const savedId = props.getProperty('SHEET_ID');
   if (savedId) { try { book = SpreadsheetApp.openById(savedId); } catch (e) { book = null; } }
   if (!book) { try { book = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) { book = null; } }
-  if (!book) book = SpreadsheetApp.create('Ustabaşı — data');
+  if (!book) book = SpreadsheetApp.create('Master — data');
   props.setProperty('SHEET_ID', book.getId());
   if (!props.getProperty('SALT')) props.setProperty('SALT', Utilities.getUuid());
   P.reset(); DB.reset();
@@ -683,11 +685,14 @@ function setup() {
   book.getSheets().forEach(sh => {
     if (!SCHEMA[sh.getName()] && sh.getLastRow() === 0 && book.getSheets().length > 1) book.deleteSheet(sh);
   });
-  if (!props.getProperty('PHOTO_FOLDER')) props.setProperty('PHOTO_FOLDER', DriveApp.createFolder('Ustabaşı — fotolar').getId());
+  if (!props.getProperty('PHOTO_FOLDER')) props.setProperty('PHOTO_FOLDER', DriveApp.createFolder('Master — fotolar').getId());
   P.reset();
 
   const have = DB.all('Settings').map(r => r.key);
   Object.keys(DEFAULT_SETTINGS).forEach(k => { if (have.indexOf(k) < 0) DB.insert('Settings', { key: k, value: DEFAULT_SETTINGS[k] }); });
+  // Tətbiqin adı dəyişib (Ustabaşı → Master): köhnə standart şirkət adını yeniləyirik.
+  const co = DB.all('Settings').find(r => r.key === 'companyName');
+  if (co && co.value === 'Ustabaşı') DB.update('Settings', co, { value: 'Master' });
   if (!DB.all('Users').some(u => u.role === 'admin')) {
     const id = uid('U');
     DB.insert('Users', { id, role: 'admin', name: ADMIN_NAME, phone: cleanPhone(ADMIN_PHONE), pwHash: hashPw(id, ADMIN_PASSWORD), mustChange: 'yes', lang: 'az', status: 'active', created: nowIso() });
@@ -742,7 +747,7 @@ function clearCache() { bumpAll(); Logger.log('Keş yeniləndi'); }
 
 /** Admin telefonunu və müvəqqəti şifrəni yuxarıdakı ADMIN_* dəyərlərinə görə yazır (şifrə unudulanda). */
 function setAdminLogin() {
-  if (cleanPhone(ADMIN_PHONE) === '994500000000' && String(ADMIN_PASSWORD) === 'Ustabasi#2026') {
+  if (cleanPhone(ADMIN_PHONE) === '994500000000' && String(ADMIN_PASSWORD) === 'Master#2026') {
     Logger.log('Əvvəlcə kodun əvvəlində ADMIN_PHONE və ADMIN_PASSWORD dəyərlərini dəyişin, Save basın, sonra yenidən işə salın.');
     return;
   }
@@ -759,6 +764,169 @@ function setAdminLogin() {
     DB.commit();
   } finally { lock.releaseLock(); }
   Logger.log('Admin girişi yazıldı. Telefon: ' + cleanPhone(ADMIN_PHONE) + '. İlk girişdə yeni şifrə yaradılır.');
+}
+
+// ---- Test master data ----
+const TEST_PASSWORD = 'Test#2026';   // sahə rəislərinin müvəqqəti şifrəsi (ilk girişdə yenisi yaradılır)
+const TEST_FOREMEN = [
+  // ad, telefon, dil, aylıq məbləğ, bonus faizi
+  ['Rəşad Məmmədov', '994509990001', 'az', 1000, 10],
+  ['Elşən Quliyev', '994509990002', 'az', 900, 10],
+  ['Nicat Babayev', '994509990003', 'ru', 950, 8]
+];
+const TEST_WORKERS = [
+  // ad, telefon, sahə rəisi (indeks), ixtisas, dərəcə, ödəniş növü, məbləğ, model, dil
+  ['Elvin Məmmədov', '994509991001', 0, 'Kafelçi', 'senior', 'MONTH', 1200, 'STD_BONUS', 'az'],
+  ['Samir Abbasov', '994509991002', 0, 'Suvaqçı', 'master', 'DAY', 50, 'STD_BONUS', 'az'],
+  ['Fərid Kərimov', '994509991003', 0, 'Köməkçi', 'helper', 'DAY', 30, 'STD', 'az'],
+  ['Anar Novruzov', '994509991004', 0, 'Boyaqçı', 'master', 'MONTH', 900, 'STD_BONUS', 'az'],
+  ['Orxan Qasımov', '994509991005', 1, 'Elektrik', 'senior', 'MONTH', 1100, 'STD', 'az'],
+  ['Tural Həsənov', '994509991006', 1, 'Santexnik', 'master', 'DAY', 55, 'STD_BONUS', 'az'],
+  ['Kamran Əliyev', '994509991007', 1, 'Alçıpançı', 'master', 'DAY', 45, 'BONUS', 'az'],
+  ['Vüsal İsmayılov', '994509991008', 2, 'Laminatçı', 'master', 'MONTH', 850, 'STD_BONUS', 'az'],
+  ['Ruslan Petrov', '994509991009', 2, 'Kafelçi', 'master', 'DAY', 60, 'STD_BONUS', 'ru'],
+  ['Mehmet Yılmaz', '994509991010', 2, 'Santexnik', 'senior', 'MONTH', 1000, 'STD_BONUS', 'tr']
+];
+const TEST_CUSTOMERS = [
+  // ad, telefon, növ, VÖEN, dil
+  ['Leyla Hüseynova', '994509992001', 'person', '', 'az'],
+  ['Nur Residence MMC', '994509992002', 'company', '1700000011', 'az'],
+  ['Kaspi Ofis MMC', '994509992003', 'company', '1700000022', 'ru'],
+  ['Rauf Səfərov', '994509992004', 'person', '', 'az'],
+  ['Anadolu Mobilya MMC', '994509992005', 'company', '1700000033', 'tr']
+];
+const TEST_SITES = [
+  // ad, ünvan, lat, lng, müştəri (indeks), sahə rəisi (indeks), müqavilə məbləği
+  ['Mənzil — Nərimanov', 'Təbriz küç. 45, mənzil 12', 40.4040, 49.8700, 0, 0, 18500],
+  ['Yaşayış kompleksi — Yasamal, blok A', 'Şərifzadə küç. 210', 40.3870, 49.8170, 1, 0, 64000],
+  ['Ofis — Nəsimi', '28 May küç. 9, 4-cü mərtəbə', 40.3790, 49.8480, 2, 1, 42000],
+  ['Villa — Mərdəkan', 'S. Yesenin küç. 18', 40.4920, 50.1400, 3, 1, 37500],
+  ['Mağaza — Xətai', 'Nobel pr. 23', 40.3790, 49.8920, 4, 2, 26000]
+];
+// iş növü, norma növü, norma həcmi (MONTH: ay üçün, DAY: gün üçün)
+const TEST_NORMS = [
+  ['Kafel döşəmə', 'MONTH', 260], ['Suvaq', 'DAY', 25], ['Şpaklyovka', 'DAY', 30], ['Boya', 'DAY', 40],
+  ['Alçıpan', 'DAY', 15], ['Laminat', 'DAY', 25], ['Plintus', 'DAY', 40], ['Elektrik nöqtəsi', 'DAY', 10], ['Santexnika nöqtəsi', 'DAY', 4]
+];
+const TEST_ESTIMATES = [
+  // obyekt (indeks), iş növü, plan həcmi, müştəri qiyməti (₼ / vahid)
+  [0, 'Kafel döşəmə', 85, 18], [0, 'Suvaq', 240, 7], [0, 'Boya', 320, 5], [0, 'Santexnika nöqtəsi', 14, 35],
+  [1, 'Suvaq', 1800, 6.5], [1, 'Şpaklyovka', 1800, 5], [1, 'Kafel döşəmə', 640, 17], [1, 'Elektrik nöqtəsi', 220, 25],
+  [2, 'Alçıpan', 420, 14], [2, 'Laminat', 380, 8], [2, 'Elektrik nöqtəsi', 120, 25], [2, 'Boya', 900, 5],
+  [3, 'Kafel döşəmə', 310, 20], [3, 'Laminat', 260, 9], [3, 'Plintus', 280, 4], [3, 'Santexnika nöqtəsi', 26, 40],
+  [4, 'Alçıpan', 180, 14], [4, 'Kafel döşəmə', 140, 18], [4, 'Elektrik nöqtəsi', 60, 25]
+];
+
+/**
+ * Test master data: 3 sahə rəisi, 10 usta, 5 müştəri, 5 obyekt (təsdiqli), iş növlərinin normaları, smetalar.
+ * Təkrar işə salmaq təhlükəsizdir: data artıq varsa, yenidən yazılmır.
+ * Sahə rəislərinin müvəqqəti şifrəsi: TEST_PASSWORD (ilk girişdə yenisi yaradılır).
+ * Silmək üçün: removeTestData.
+ */
+function seedTestData() {
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('SHEET_ID')) { Logger.log('Əvvəlcə setup → Run.'); return; }
+  if (props.getProperty('TEST_IDS')) { Logger.log('Test data artıq var. Yenidən yazmaq üçün əvvəlcə removeTestData → Run.'); return; }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  const ids = [];
+  try {
+    P.reset(); DB.reset();
+    const now = nowIso();
+    const admin = DB.all('Users').find(u => u.role === 'admin') || { id: 'seed' };
+    const users = DB.all('Users');
+    const taken = {};
+    users.forEach(u => { if (u.status !== 'deleted') taken[u.phone] = true; });
+    DB.all('Workers').forEach(w => { if (w.status !== 'deleted') taken[w.phone] = true; });
+    const busy = TEST_FOREMEN.concat(TEST_WORKERS).map(x => x[1]).filter(ph => taken[ph]);
+    if (busy.length) { Logger.log('Bu telefonlar artıq istifadə olunur: ' + busy.join(', ') + '. Test data yazılmadı.'); return; }
+
+    // İş növləri və normalar (yalnız norması boş olanlara yazılır)
+    const types = {};
+    DB.all('WorkTypes').forEach(t => { types[t.name] = t; });
+    TEST_NORMS.forEach(n => {
+      const t = types[n[0]];
+      if (!t) {
+        const unit = (SEED_WORK_TYPES.find(s => s[0] === n[0]) || [n[0], 'm²'])[1];
+        types[n[0]] = DB.insert('WorkTypes', { id: uid('T'), name: n[0], unit, bonusType: 'AZN', rateHelper: 0, rateMaster: 0, rateSenior: 0, percent: 0, active: 'yes', normType: n[1], normQty: n[2] });
+        ids.push('T:' + types[n[0]].id);
+      } else if (!t.normType) {
+        DB.update('WorkTypes', t, { normType: n[1], normQty: n[2], active: 'yes' });
+      }
+    });
+
+    const foremen = TEST_FOREMEN.map(f => {
+      const id = uid('U');
+      DB.insert('Users', { id, role: 'foreman', name: f[0], phone: f[1], lang: f[2], status: 'active', payType: 'MONTH', payModel: 'STD_BONUS', baseAmount: f[3], bonusPercent: f[4], created: now, pwHash: hashPw(id, TEST_PASSWORD), mustChange: 'yes' });
+      ids.push('U:' + id);
+      return id;
+    });
+    TEST_WORKERS.forEach(w => {
+      const id = uid('W');
+      DB.insert('Workers', { id, name: w[0], phone: w[1], foremanId: foremen[w[2]], specialty: w[3], grade: w[4], payType: w[5], baseAmount: w[6], payModel: w[7], bonusBase: '', norm: '', startTime: '09:00', endTime: '18:00', lang: w[8], status: 'active', created: now });
+      ids.push('W:' + id);
+    });
+    const customers = TEST_CUSTOMERS.map(c => {
+      const id = uid('C');
+      DB.insert('Customers', { id, name: c[0], phone: c[1], type: c[2], voen: c[3], lang: c[4], created: now, by: admin.id });
+      ids.push('C:' + id);
+      return id;
+    });
+    const radius = num(settings().defaultRadius) || 150;
+    const sites = TEST_SITES.map((s, i) => {
+      const id = uid('S');
+      DB.insert('Sites', {
+        id, customerId: customers[s[4]], name: s[0], address: s[1], lat: s[2], lng: s[3], radius, foremanId: foremen[s[5]], status: 'APPROVED',
+        contractNo: 'T-2026-' + ('00' + (i + 1)).slice(-3), contractDate: todayStr().slice(0, 8) + '01', contractAmount: s[6],
+        created: now, approvedBy: admin.id, approvedAt: now, photos: '', photoLat: '', photoLng: '', returnReason: '', by: admin.id
+      });
+      ids.push('S:' + id);
+      return id;
+    });
+    TEST_ESTIMATES.forEach(e => {
+      const t = types[e[1]]; if (!t) return;
+      const id = uid('M');
+      DB.insert('Estimates', { id, siteId: sites[e[0]], workTypeId: t.id, planQty: e[2], clientPrice: e[3] });
+      ids.push('M:' + id);
+    });
+    const month = todayStr().slice(0, 7);
+    if (!DB.find('PlanDays', 'month', month)) DB.insert('PlanDays', { month, days: 22, by: admin.id, at: now });
+
+    audit(null, 'Users', '', 'seed_test_data', { count: ids.length });
+    DB.commit();
+    props.setProperty('TEST_IDS', JSON.stringify(ids));
+  } finally { lock.releaseLock(); }
+  Logger.log('Test data yazıldı: ' + TEST_FOREMEN.length + ' sahə rəisi, ' + TEST_WORKERS.length + ' usta, ' + TEST_CUSTOMERS.length + ' müştəri, ' + TEST_SITES.length + ' obyekt, ' + TEST_ESTIMATES.length + ' smeta sətri.');
+  Logger.log('Sahə rəisi girişi: telefon ' + TEST_FOREMEN.map(f => f[1]).join(', ') + ' · müvəqqəti şifrə ' + TEST_PASSWORD);
+}
+
+/** seedTestData-nın yazdığı datanı və bu data ilə yaranan qeydləri (davamiyyət, iş, avans, ödəniş …) silir. */
+function removeTestData() {
+  const props = PropertiesService.getScriptProperties();
+  const raw = props.getProperty('TEST_IDS');
+  if (!raw) { Logger.log('Test data yoxdur.'); return; }
+  const set = {};
+  JSON.parse(raw).forEach(x => { set[x.slice(2)] = true; });
+  const lock = LockService.getScriptLock();
+  lock.waitLock(60000);
+  let count = 0;
+  try {
+    P.reset(); DB.reset();
+    const entries = {};
+    DB.all('WorkEntries').forEach(e => { if (set[e.siteId] || set[e.foremanId]) entries[e.id] = true; });
+    const keys = ['id', 'workerId', 'siteId', 'foremanId', 'customerId', 'userId', 'personId', 'entryId', 'workTypeId'];
+    const order = ['WorkShares', 'WorkEntries', 'Estimates', 'Attendance', 'GeoRejects', 'Tokens', 'LinkAttempts', 'Advances', 'Deductions', 'CustomerPayments', 'Expenses', 'SiteCosts', 'Payroll', 'WorkerHistory', 'Sessions', 'Sites', 'Customers', 'Workers', 'Users', 'WorkTypes'];
+    order.forEach(name => {
+      DB.all(name)
+        .filter(r => entries[r.entryId] || (name === 'WorkEntries' && entries[r.id]) || keys.some(k => r[k] && set[r[k]]))
+        .sort((a, b) => b._row - a._row)
+        .forEach(r => { DB.remove(name, r); count++; });
+    });
+    audit(null, 'Users', '', 'remove_test_data', { count });
+    DB.commit();
+    props.deleteProperty('TEST_IDS');
+  } finally { lock.releaseLock(); }
+  Logger.log('Test data silindi: ' + count + ' sətir.');
 }
 
 /** Gecə təmizləmə: köhnə sessiya və linklər silinir, köhnə qeydlər arxivə köçür. */
@@ -803,7 +971,7 @@ function archiveRows(name, rows) {
   const id = props.getProperty('ARCHIVE_ID');
   if (id) { try { book = SpreadsheetApp.openById(id); } catch (e) { book = null; } }
   if (!book) {
-    book = SpreadsheetApp.create('Ustabaşı — arxiv');
+    book = SpreadsheetApp.create('Master — arxiv');
     try { book.setSpreadsheetTimeZone(TZ); } catch (e) { /* ignore */ }
     props.setProperty('ARCHIVE_ID', book.getId());
   }
@@ -820,7 +988,7 @@ function backupFolder() {
   let folder = null;
   const fid = props.getProperty('BACKUP_FOLDER');
   if (fid) { try { folder = DriveApp.getFolderById(fid); } catch (e) { folder = null; } }
-  if (!folder) { folder = DriveApp.createFolder('Ustabaşı — ehtiyat surətləri'); props.setProperty('BACKUP_FOLDER', folder.getId()); }
+  if (!folder) { folder = DriveApp.createFolder('Master — ehtiyat surətləri'); props.setProperty('BACKUP_FOLDER', folder.getId()); }
   return folder;
 }
 
@@ -828,7 +996,7 @@ function backupFolder() {
 function makeBackup(label) {
   const props = PropertiesService.getScriptProperties();
   const folder = backupFolder();
-  const name = 'Ustabaşı ' + (label || 'ehtiyat') + ' ' + todayStr();
+  const name = 'Master ' + (label || 'ehtiyat') + ' ' + todayStr();
   const file = DriveApp.getFileById(props.getProperty('SHEET_ID')).makeCopy(name, folder);
   props.setProperty('LAST_BACKUP', nowIso());
   let url = '';
@@ -843,7 +1011,7 @@ function dailyBackup() {
   const files = [];
   const it = backupFolder().getFiles();
   while (it.hasNext()) files.push(it.next());
-  files.filter(f => String(f.getName()).indexOf('Ustabaşı ehtiyat ') === 0)
+  files.filter(f => /^(Ustabaşı|Master) ehtiyat /.test(String(f.getName())))
     .sort((a, b) => b.getDateCreated() - a.getDateCreated())
     .slice(14).forEach(f => f.setTrashed(true));
 }
@@ -858,8 +1026,8 @@ function weeklyMail() {
   const id = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
   const res = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + id + '/export?format=xlsx', { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
   if (res.getResponseCode() !== 200) return;
-  const blob = res.getBlob().setName('Ustabasi-' + todayStr() + '.xlsx');
-  MailApp.sendEmail(to, 'Ustabaşı — həftəlik ehtiyat surəti ' + todayStr(), 'Əlavədə Ustabaşı datasının Excel surəti var.', { attachments: [blob] });
+  const blob = res.getBlob().setName('Master-' + todayStr() + '.xlsx');
+  MailApp.sendEmail(to, 'Master — həftəlik ehtiyat surəti ' + todayStr(), 'Əlavədə Master datasının Excel surəti var.', { attachments: [blob] });
   PropertiesService.getScriptProperties().setProperty('LAST_MAIL', nowIso());
 }
 
@@ -1061,7 +1229,7 @@ function linkStatus(t, now) {
 
 function companyInfo() {
   const st = settings();
-  return { name: st.companyName || 'Ustabaşı', voen: st.companyVoen || '', phone: st.companyPhone || '', address: st.companyAddress || '' };
+  return { name: st.companyName || 'Master', voen: st.companyVoen || '', phone: st.companyPhone || '', address: st.companyAddress || '' };
 }
 
 function receiptData(kind, r) {
@@ -1275,7 +1443,7 @@ const COMMON = {
     const props = PropertiesService.getScriptProperties();
     let fid = props.getProperty('PDF_FOLDER'), folder = null;
     if (fid) { try { folder = DriveApp.getFolderById(fid); } catch (e) { folder = null; } }
-    if (!folder) { folder = DriveApp.createFolder('Ustabaşı — PDF'); props.setProperty('PDF_FOLDER', folder.getId()); }
+    if (!folder) { folder = DriveApp.createFolder('Master — PDF'); props.setProperty('PDF_FOLDER', folder.getId()); }
     const name = String(b.name || 'cek').replace(/[^\w.\-]+/g, '_').slice(0, 80) + '.pdf';
     const file = folder.createFile(Utilities.newBlob(Utilities.base64Decode(m[1]), 'application/pdf', name));
     audit(u, String(b.sheet || '-'), String(b.id || ''), 'pdf', { name });

@@ -1,4 +1,4 @@
-/* Ustabaşı — tərcümələr: AZ, RU, EN, TR */
+/* Master — tərcümələr: AZ, RU, EN, TR */
 window.I18N = {
   az: {
     tagline: 'Ustalar, sahə rəisləri, obyektlər — bir yerdə',
@@ -422,7 +422,7 @@ window.I18N = {
     system: 'Sistem', last_backup: 'Son ehtiyat surəti', backup_now: 'İndi surət çıxar', backup_done: 'Ehtiyat surəti çıxarıldı',
     print_pdf: 'Çap / PDF', print_hint: 'Çap pəncərəsində "PDF kimi saxla" seçin.', subtotal: 'Aralıq cəm', foremen_group: 'Sahə rəisləri', accountant: 'Mühasib',
     pdf_adv_title: 'Avans çeki', pdf_pay_title: 'Ödəniş qəbzi', pdf_payer: 'Ödəyən', pdf_customer: 'Müştəri', pdf_worker: 'Alan (usta)', pdf_receiver: 'Qəbul edən', pdf_confirmed: 'Linklə təsdiq', received_from: 'Ödədi',
-    pdf_footer: 'Bu sənəd Ustabaşı sistemində yaradılıb. Məbləğ alan tərəfin 1 dəfəlik linki ilə elektron təsdiqlənib.',
+    pdf_footer: 'Bu sənəd Master sistemində yaradılıb. Məbləğ alan tərəfin 1 dəfəlik linki ilə elektron təsdiqlənib.',
     wa_adv: 'Salam, {name}! {company}: aldığınız avansın məbləğini təsdiq edin:\n{url}\nLink {h} saat işləyir və yalnız sizin telefonunuzda açılır.',
     wa_pay: 'Hörmətli {name}! {company}: {site} üzrə {date} tarixli ödənişinizin məbləğini təsdiq edin:\n{url}\nLink {h} saat işləyir.',
     from: 'Başlanğıc', to: 'Son', user: 'İstifadəçi', action: 'Əməliyyat', object: 'Obyekt', changes: 'Dəyişiklik', filter: 'Filtr', shown_of: 'Göstərilir: {n} / {total}', link_user: 'Link (usta/müştəri)',
@@ -489,7 +489,7 @@ window.I18N = {
     system: 'Система', last_backup: 'Последняя резервная копия', backup_now: 'Сделать копию сейчас', backup_done: 'Резервная копия создана',
     print_pdf: 'Печать / PDF', print_hint: 'В окне печати выберите «Сохранить как PDF».', subtotal: 'Промежуточный итог', foremen_group: 'Прорабы', accountant: 'Бухгалтер',
     pdf_adv_title: 'Чек аванса', pdf_pay_title: 'Квитанция об оплате', pdf_payer: 'Плательщик', pdf_customer: 'Клиент', pdf_worker: 'Получатель (мастер)', pdf_receiver: 'Принял', pdf_confirmed: 'Подтверждено ссылкой', received_from: 'Оплатил',
-    pdf_footer: 'Документ создан в системе Ustabaşı. Сумма подтверждена получателем через одноразовую ссылку.',
+    pdf_footer: 'Документ создан в системе Master. Сумма подтверждена получателем через одноразовую ссылку.',
     wa_adv: 'Здравствуйте, {name}! {company}: подтвердите сумму полученного аванса:\n{url}\nСсылка действует {h} ч и открывается только на вашем телефоне.',
     wa_pay: 'Уважаемый(ая) {name}! {company}: подтвердите сумму оплаты по объекту {site} от {date}:\n{url}\nСсылка действует {h} ч.',
     from: 'С', to: 'По', user: 'Пользователь', action: 'Действие', object: 'Объект', changes: 'Изменения', filter: 'Фильтр', shown_of: 'Показано: {n} / {total}', link_user: 'Ссылка (мастер/клиент)',
@@ -560,7 +560,7 @@ window.I18N = {
     system: 'System', last_backup: 'Last backup', backup_now: 'Make a backup now', backup_done: 'Backup made',
     print_pdf: 'Print / PDF', print_hint: 'In the print window, select "Save as PDF".', subtotal: 'Subtotal', foremen_group: 'Site managers', accountant: 'Accountant',
     pdf_adv_title: 'Advance receipt', pdf_pay_title: 'Payment receipt', pdf_payer: 'Payer', pdf_customer: 'Customer', pdf_worker: 'Receiver (worker)', pdf_receiver: 'Received by', pdf_confirmed: 'Confirmed by link', received_from: 'Paid',
-    pdf_footer: 'This document was made in Ustabaşı. The amount was confirmed electronically by the receiver with a one-time link.',
+    pdf_footer: 'This document was made in Master. The amount was confirmed electronically by the receiver with a one-time link.',
     wa_adv: 'Hello, {name}! {company}: confirm the amount of the advance you received:\n{url}\nThe link works {h} h and opens only on your phone.',
     wa_pay: 'Dear {name}! {company}: confirm the amount of your payment for {site} on {date}:\n{url}\nThe link works {h} h.',
     from: 'From', to: 'To', user: 'User', action: 'Action', object: 'Object', changes: 'Changes', filter: 'Filter', shown_of: 'Shown: {n} / {total}', link_user: 'Link (worker/customer)',
@@ -728,7 +728,7 @@ window.I18N.tr = {
   system: 'Sistem', last_backup: 'Son yedek', backup_now: 'Şimdi yedek al', backup_done: 'Yedek alındı',
   print_pdf: 'Yazdır / PDF', print_hint: 'Yazdırma penceresinde "PDF olarak kaydet"i seçin.', subtotal: 'Ara toplam', foremen_group: 'Şantiye şefleri', accountant: 'Muhasebeci',
   pdf_adv_title: 'Avans fişi', pdf_pay_title: 'Ödeme makbuzu', pdf_payer: 'Ödeyen', pdf_customer: 'Müşteri', pdf_worker: 'Alan (usta)', pdf_receiver: 'Teslim alan', pdf_confirmed: 'Linkle onay', received_from: 'Ödedi',
-  pdf_footer: 'Bu belge Ustabaşı sisteminde oluşturuldu. Tutar alan tarafın tek kullanımlık linkiyle elektronik olarak onaylandı.',
+  pdf_footer: 'Bu belge Master sisteminde oluşturuldu. Tutar alan tarafın tek kullanımlık linkiyle elektronik olarak onaylandı.',
   wa_adv: 'Merhaba, {name}! {company}: aldığınız avansın tutarını onaylayın:\n{url}\nLink {h} saat geçerli ve yalnızca sizin telefonunuzda açılır.',
   wa_pay: 'Sayın {name}! {company}: {site} için {date} tarihli ödemenizin tutarını onaylayın:\n{url}\nLink {h} saat geçerli.',
   from: 'Başlangıç', to: 'Bitiş', user: 'Kullanıcı', action: 'İşlem', object: 'Nesne', changes: 'Değişiklik', filter: 'Filtrele', shown_of: 'Gösterilen: {n} / {total}', link_user: 'Link (usta/müşteri)',

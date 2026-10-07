@@ -1,9 +1,9 @@
-/* Ustabaşı — tətbiq: giriş, karkas, marşrut, offline növbə, ümumi ekranlar */
+/* Master — tətbiq: giriş, karkas, marşrut, offline növbə, ümumi ekranlar */
 (function () {
   'use strict';
   const C = window.UBCore;
   const { t, esc, icon, logo, API, LS } = C;
-  const VERSION = '0.3.0';
+  const VERSION = '0.3.1';
   const SNAP = 'ub_snap';
   const SNAP_MAX_MS = 24 * 3600 * 1000;   // 1 gün giriş olmasa telefondakı data silinir (K-15, K-17)
   // Offline-da yalnız bunlar növbəyə düşür (S-45). Server yoxlaması tələb edənlər yalnız onlayn.
@@ -242,7 +242,7 @@
   // ------------------------------------------------------------ PDF receipts (BR-26, BR-41)
   UB.receiptData = function (kind, r) {
     const st = UB.data.settings;
-    const company = { name: st.companyName || 'Ustabaşı', voen: st.companyVoen || '', phone: st.companyPhone || '', address: st.companyAddress || '' };
+    const company = { name: st.companyName || 'Master', voen: st.companyVoen || '', phone: st.companyPhone || '', address: st.companyAddress || '' };
     if (kind === 'ADV') {
       const w = UB.idx.workers[r.workerId] || {};
       return { kind, no: r.receiptNo, date: String(r.closedAt || r.confirmedAt || r.givenAt || r.approvedAt || r.created).slice(0, 10), amount: r.amount, payer: company.name, payee: w.name || '', by: UB.foremanName(r.foremanId), confirmedAt: r.confirmedAt, company, lang: w.lang || 'az' };
@@ -319,10 +319,10 @@
     // "Çıxış" menyunun ən altında, "Ayarlar"-dan sonra (BR-69).
     const logoutLink = '<a href="#/" data-g="logout" class="nav-logout">' + icon('logout', 18) + '<span>' + esc(t('logout')) + '</span></a>';
     return '<div class="shell">' +
-      '<aside class="side"><div class="brand">' + logo(34, { animate: true }) + '<span>Ustabaşı</span></div>' +
+      '<aside class="side"><div class="brand">' + logo(34, { animate: true }) + '<span>Master</span></div>' +
       '<nav class="nav" aria-label="' + esc(t('menu')) + '">' + items.map(it => link(it)).join('') + logoutLink + '</nav>' +
       '<div class="side-foot">' + langSeg() + '<div class="small muted">' + esc(UB.user.name) + ' · ' + esc(t(UB.isAdmin() ? 'role_admin' : 'role_foreman')) + '</div></div></aside>' +
-      '<header class="topbar"><a href="#/" class="row" style="gap:8px;color:var(--text)">' + logo(28) + '<b style="font-size:17px">Ustabaşı</b></a>' +
+      '<header class="topbar"><a href="#/" class="row" style="gap:8px;color:var(--text)">' + logo(28) + '<b style="font-size:17px">Master</b></a>' +
       '<a href="#/settings" class="btn icon" style="border-radius:22px" aria-label="' + esc(t('nav_settings')) + '"><span class="small" style="font-weight:600">' + esc(C.initials(UB.user.name)) + '</span></a></header>' +
       '<main class="main" id="view"></main>' +
       '<nav class="bottom" aria-label="' + esc(t('menu')) + '">' + bottom + '</nav></div>';
@@ -411,7 +411,7 @@
     document.documentElement.classList.remove('printing');
     API.warm(); // Google serveri soyuq başlayır — şifrə yazılana qədər oyansın
     root.innerHTML = '<div class="login"><form class="login-box" id="login-form" autocomplete="on">' +
-      '<div class="login-brand">' + logo(96, { animate: true }) + '<div class="name">Ustabaşı</div><div class="muted">' + esc(t('tagline')) + '</div></div>' +
+      '<div class="login-brand">' + logo(96, { animate: true }) + '<div class="name">Master</div><div class="muted">' + esc(t('tagline')) + '</div></div>' +
       '<div class="row" style="justify-content:center">' + langSeg() + '</div>' +
       '<label class="field"><span>' + esc(t('phone')) + '</span><input name="phone" type="tel" inputmode="tel" autocomplete="username" placeholder="994 50 000 00 00" required></label>' +
       '<label class="field"><span>' + esc(t('password')) + '</span><span class="pw-wrap"><input name="password" type="password" autocomplete="current-password" required>' + eyeBtn() + '</span></label>' +
@@ -521,7 +521,7 @@
         '<div class="row"><button type="button" class="btn" id="backup-now">' + icon('download', 16) + esc(t('backup_now')) + '</button></div>' +
         ((sm.locked || []).length ? '<h3>' + esc(t('locked_users')) + '</h3><div class="list">' + sm.locked.map(x => '<div class="list-row"><span class="grow">' + esc(x.name) + ' · ' + esc(t('locked_until', { t: C.fmtTime(x.until) })) + '</span><button type="button" class="btn sm" data-unlock="' + esc(x.id) + '">' + esc(t('unlock')) + '</button></div>').join('') + '</div>' : '') +
         '</section>' : '') +
-      '<div class="tiny dim">Ustabaşı v' + VERSION + (UB.data.version ? ' · server v' + esc(UB.data.version) : '') + '</div>' +
+      '<div class="tiny dim">Master v' + VERSION + (UB.data.version ? ' · server v' + esc(UB.data.version) : '') + '</div>' +
       '</div>' +
       (admin ? '<div class="col-2"><form class="stack" id="set-form">' +
         '<section class="card"><h2>' + esc(t('set_links')) + '</h2><div class="grid2">' +
@@ -595,7 +595,7 @@
     const kind = route.parts[1], arg = route.parts[2];
     const tools = '<div class="print-tools"><button class="btn" type="button" onclick="history.back()">' + icon('left', 16) + esc(t('back')) + '</button><button class="btn primary" type="button" id="do-print">' + icon('print', 16) + esc(t('print_pdf')) + '</button><span class="small" style="color:#555">' + esc(t('print_hint')) + '</span></div>';
     const co = UB.data.settings;
-    const head = (title, sub) => '<div class="ph"><div><div style="font-weight:700;font-size:15px">' + esc(co.companyName || 'Ustabaşı') + (co.companyVoen ? ' · ' + esc(t('voen')) + ' ' + esc(co.companyVoen) : '') + '</div><h1>' + esc(title) + '</h1><div style="color:#444;font-size:13px">' + esc(sub || '') + '</div></div>' + logo(40) + '</div>';
+    const head = (title, sub) => '<div class="ph"><div><div style="font-weight:700;font-size:15px">' + esc(co.companyName || 'Master') + (co.companyVoen ? ' · ' + esc(t('voen')) + ' ' + esc(co.companyVoen) : '') + '</div><h1>' + esc(title) + '</h1><div style="color:#444;font-size:13px">' + esc(sub || '') + '</div></div>' + logo(40) + '</div>';
     const bindPrint = (what, id) => { const b = view.querySelector('#do-print'); if (b) b.addEventListener('click', () => { API.call('logEvent', { event: 'print', what, id }).catch(() => {}); window.print(); }); };
     if (kind === 'receipt' || kind === 'preceipt') {
       const isAdv = kind === 'receipt';
@@ -652,7 +652,7 @@
     const w = UB.idx.workers[a.workerId] || {};
     const L = w.lang || 'az';
     return [
-      'Ustabaşı · ' + t('receipt', null, L) + ' ' + a.receiptNo,
+      'Master · ' + t('receipt', null, L) + ' ' + a.receiptNo,
       t('date', null, L) + ': ' + String(a.closedAt || a.approvedAt).slice(0, 10),
       t('worker', null, L) + ': ' + (w.name || ''),
       t('amount', null, L) + ': ' + C.money(a.amount),

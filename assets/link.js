@@ -1,4 +1,4 @@
-/* Ustabaşı — usta və müştəri linki (u.html): gəliş/çıxış, iş təsdiqi, avans və ödəniş təsdiqi */
+/* Master — usta və müştəri linki (u.html): gəliş/çıxış, iş təsdiqi, avans və ödəniş təsdiqi */
 (function () {
   'use strict';
   const C = window.UBCore;
@@ -18,7 +18,7 @@
 
   function header() {
     const l = C.getLang();
-    return '<div class="row" style="justify-content:space-between;min-height:44px"><div class="row" style="gap:8px">' + logo(28) + '<b style="font-size:17px">Ustabaşı</b></div>' +
+    return '<div class="row" style="justify-content:space-between;min-height:44px"><div class="row" style="gap:8px">' + logo(28) + '<b style="font-size:17px">Master</b></div>' +
       '<div class="seg" role="group" aria-label="' + esc(t('language')) + '">' + C.LANGS.map(x => '<button type="button" data-lang="' + x + '" aria-pressed="' + (l === x) + '">' + x.toUpperCase() + '</button>').join('') + '</div></div>';
   }
 

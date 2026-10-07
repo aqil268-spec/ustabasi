@@ -1,4 +1,4 @@
-/* Ustabaşı — admin ekranları və ümumi formalar */
+/* Master — admin ekranları və ümumi formalar */
 (function () {
   'use strict';
   const C = window.UBCore, UB = window.UB;
@@ -524,7 +524,7 @@
     if (!res) return;
     const L = res.lang || 'az';
     const url = C.linkUrl(res.token);
-    const co = UB.data.settings.companyName || 'Ustabaşı';
+    const co = UB.data.settings.companyName || 'Master';
     const text = kind === 'ADV'
       ? t('wa_adv', { name: String(res.name).split(' ')[0], company: co, url, h: UB.data.settings.moneyLinkHours || 24 }, L)
       : t('wa_pay', { name: res.name, company: co, site: UB.siteName(r.siteId), date: r.date, url, h: UB.data.settings.moneyLinkHours || 24 }, L);

@@ -1,4 +1,4 @@
-/* Ustabaşı — ümumi köməkçilər: API, dil, format, dialoq, ikonlar, PDF, offline növbə */
+/* Master — ümumi köməkçilər: API, dil, format, dialoq, ikonlar, PDF, offline növbə */
 (function () {
   'use strict';
   const CFG = window.USTABASI_CONFIG || {};
@@ -424,7 +424,7 @@
     g.stroke(new Path2D('M21 26L32 16L43 26')); g.stroke(new Path2D('M24.5 31.5L30 37L40 27'));
     g.restore();
     const co = r.company || {};
-    g.fillStyle = '#111'; g.font = '700 46px ' + F; g.fillText(co.name || 'Ustabaşı', 230, 135);
+    g.fillStyle = '#111'; g.font = '700 46px ' + F; g.fillText(co.name || 'Master', 230, 135);
     g.font = '400 28px ' + F; g.fillStyle = '#444';
     let y = 180;
     [co.voen ? tt('voen') + ': ' + co.voen : '', [co.address, co.phone].filter(Boolean).join(' · ')].filter(Boolean).forEach(line => { g.fillText(line, 230, y); y += 38; });

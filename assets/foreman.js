@@ -1,4 +1,4 @@
-/* Ustabaşı — sahə rəisi ekranları */
+/* Master — sahə rəisi ekranları */
 (function () {
   'use strict';
   const C = window.UBCore, UB = window.UB;
@@ -454,7 +454,7 @@
   function interimText(r) {
     const L = r.worker.lang || 'az', l = r.line || {};
     const tt = (k, v) => t(k, v, L);
-    const lines = ['Ustabaşı · ' + tt('interim_title') + ' · ' + (tt('months').split(',')[Number(r.month.slice(5, 7)) - 1] || '') + ' ' + r.month.slice(0, 4), tt('as_of') + ': ' + r.asOf, tt('worker') + ': ' + r.worker.name, tt('days_worked') + ': ' + (l.daysWorked || 0) + (r.worker.payType === 'MONTH' && l.planDays ? ' / ' + l.planDays : '')];
+    const lines = ['Master · ' + tt('interim_title') + ' · ' + (tt('months').split(',')[Number(r.month.slice(5, 7)) - 1] || '') + ' ' + r.month.slice(0, 4), tt('as_of') + ': ' + r.asOf, tt('worker') + ': ' + r.worker.name, tt('days_worked') + ': ' + (l.daysWorked || 0) + (r.worker.payType === 'MONTH' && l.planDays ? ' / ' + l.planDays : '')];
     if (l.total !== undefined) {
       if (r.worker.payModel !== 'BONUS') lines.push(tt('col_std') + ': ' + C.money(l.S));
       if (r.worker.payModel !== 'STD') {
