@@ -1,0 +1,16 @@
+{
+  "name": "master-server",
+  "version": "0.3.4",
+  "private": true,
+  "description": "Master — Node.js + PostgreSQL server. Runs server/Code.gs unchanged.",
+  "main": "index.js",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test.js",
+    "import": "node import.js"
+  },
+  "dependencies": {
+    "postgres": "^3.4.5"
+  }
+}

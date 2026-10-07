@@ -1,3 +1,4 @@
 tests/shots*/
 tests/*.result.json
 tests/*.before.json
+server/node/node_modules/
