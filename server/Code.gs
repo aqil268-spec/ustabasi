@@ -1150,7 +1150,7 @@ function doPost(e) {
     if (!READ_ONLY[action]) {
       // Yazan sorğular növbə ilə işləyir; data kilid alınandan SONRA oxunur.
       lock = LockService.getScriptLock();
-      lock.waitLock(25000);
+      try { lock.waitLock(25000); } catch (e) { lock = null; fail('busy'); }   // növbə 25 san-dan uzun: "server məşğuldur"
       P.reset(); DB.reset();
     }
     const isPublic = !!PUBLIC[action];
