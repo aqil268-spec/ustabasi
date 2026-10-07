@@ -1,7 +1,10 @@
 /*
  * Master — HTTP server (Node.js + PostgreSQL).
  * Same API as the Apps Script web app: POST JSON body → JSON answer.
- * Env: DATABASE_URL (required), PORT, PUBLIC_URL, ADMIN_NAME, ADMIN_PHONE, ADMIN_PASSWORD, ADMIN_RESET, ADMIN_EMAIL, CORS_ORIGIN.
+ * Env: DATABASE_URL (required), PORT, PUBLIC_URL, ADMIN_NAME, ADMIN_PHONE, ADMIN_PASSWORD, ADMIN_RESET, ADMIN_EMAIL, CORS_ORIGIN,
+ *      SERVE_APP=1 (the server also serves the app: index.html, u.html, assets; API on /api),
+ *      COMPANY_NAME (company name on first start),
+ *      SUPERADMIN_PASSWORD + RENDER_API_KEY + RENDER_OWNER_ID (superadmin panel /super, see control.js).
  */
 'use strict';
 process.env.TZ = process.env.TZ || 'Asia/Baku';
@@ -19,7 +22,13 @@ const CORS = process.env.CORS_ORIGIN || '*';
 const pool = store.makePool(process.env.DATABASE_URL);
 let logBuf = null;   // collects Logger.log lines while a service function runs
 const rt = createRuntime({ publicUrl: PUBLIC_URL, log: (...a) => { const line = a.map(String).join(' '); if (logBuf) logBuf.push(line); console.log('[gas]', line); } });
-const ADMIN_PAGE = require('fs').readFileSync(path.join(__dirname, 'admin.html'), 'utf8');
+const fs = require('fs');
+const ADMIN_PAGE = fs.readFileSync(path.join(__dirname, 'admin.html'), 'utf8');
+const SERVE_APP = process.env.SERVE_APP === '1';
+const APP_DIR = path.join(__dirname, '..', '..');
+const APP_FILE = /^\/(index\.html|u\.html|sw\.js|master\.webmanifest|(?:assets|icons)\/[\w.\-]+)$/;
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json' };
+const control = require('./control');
 let ready = false;
 let viewsFor = '';
 
@@ -92,6 +101,11 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': f.mime, 'Content-Length': f.data.length, 'Cache-Control': 'private, max-age=31536000, immutable', 'Access-Control-Allow-Origin': CORS, 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': 'inline; filename="' + String(f.name).replace(/[^\w.\-]/g, '_') + '"' });
       return res.end(f.data);
     }
+    if (p === '/super' || p.startsWith('/super/')) {
+      if (!control.enabled()) return send(res, 404, JSON.stringify({ ok: false, error: 'not_found' }));
+      return control.handle(req, res, p, readBody);
+    }
+    if (SERVE_APP && req.method === 'GET' && (p === '/' || p === '/config.js' || APP_FILE.test(p))) return serveApp(req, res, p);
     if (p === '/admin' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer' });
       return res.end(ADMIN_PAGE);
@@ -102,7 +116,7 @@ const server = http.createServer(async (req, res) => {
       const out = await serial(() => runService(String(b.token || ''), String(b.fn || '')));
       return send(res, out.ok ? 200 : 403, JSON.stringify(out));
     }
-    if (p === '/' || p === '/exec') {
+    if (p === '/' || p === '/exec' || p === '/api') {
       if (req.method === 'GET') {
         const out = await serial(() => runAndSave(() => rt.api.doGet({ parameter: Object.fromEntries(url.searchParams) })));
         return send(res, 200, out.s);
@@ -121,6 +135,28 @@ const server = http.createServer(async (req, res) => {
     return send(res, busy ? 503 : 500, JSON.stringify({ ok: false, error: busy ? 'busy' : 'server' }));
   }
 });
+
+/** The app (frontend) from the repository, same origin as the API. */
+function serveApp(req, res, p) {
+  const base = { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' };
+  if (p === '/config.js') {
+    const proto = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0];
+    const origin = proto + '://' + String(req.headers.host || '').replace(/[^\w.:\-]/g, '');
+    const js = 'window.USTABASI_CONFIG = ' + JSON.stringify({ API_URL: origin + '/api', APP_URL: '' }) + ';\n';
+    res.writeHead(200, Object.assign({ 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' }, base));
+    return res.end(js);
+  }
+  const rel = p === '/' ? 'index.html' : p.slice(1);
+  const file = path.join(APP_DIR, rel);
+  if (!file.startsWith(APP_DIR + path.sep)) return send(res, 404, 'not found', 'text/plain');
+  fs.readFile(file, (err, data) => {
+    if (err) return send(res, 404, 'not found', 'text/plain');
+    const ext = path.extname(file);
+    const cache = /\.(html|webmanifest)$|sw\.js$/.test(file) ? 'no-cache' : 'public, max-age=3600';
+    res.writeHead(200, Object.assign({ 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': cache }, base));
+    res.end(data);
+  });
+}
 
 // ---------- scheduled jobs (replaces Apps Script triggers) ----------
 const JOBS = [
@@ -161,6 +197,7 @@ async function main() {
     await runAndSave(() => {});   // creates SQL views
   }
   await adminReset();
+  if (control.enabled()) await control.init(pool);
   ready = true;
   server.listen(PORT, () => console.log('Master server v' + rt.api.VERSION + ' on :' + PORT + ' (' + PUBLIC_URL + ')'));
   setInterval(() => { tick().catch(e => console.error('tick', e)); }, 60000).unref();

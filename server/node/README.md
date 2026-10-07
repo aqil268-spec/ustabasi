@@ -47,6 +47,21 @@ Apps Script-dəki `setAdminLogin` əvəzinə:
 Server başlayanda admin girişini bir dəfə yazır, bütün admin sessiyalarını bağlayır. İlk girişdə yeni şifrə tələb olunur.
 Eyni söz ilə təkrar deploy sıfırlamanı təkrarlamır.
 
+## Superadmin paneli (`/super`) — çox şirkət
+
+Yalnız `SUPERADMIN_PASSWORD` olan serverdə işləyir (idarəetmə serveri). Şirkət serverlərində bu dəyişən yoxdur — onlarda `/super` 404 verir və superadmin haqqında heç nə yoxdur.
+
+| Dəyişən | Təyinat |
+| --- | --- |
+| `SUPERADMIN_PASSWORD` | Panel şifrəsi |
+| `RENDER_API_KEY` | Render → Account Settings → API Keys |
+| `RENDER_OWNER_ID` | Render workspace id (`tea-…`) |
+| `COMPANY_BRANCH` | Şirkət serverlərinin branch-ı (standart: `node-server`) |
+
+"Şirkət yarat" hər şirkət üçün Render-də 1 PostgreSQL və 1 server yaradır. Server tətbiqi özü verir (`SERVE_APP=1`): tətbiq `https://<server>/`, API `https://<server>/api`, xidmət səhifəsi `/admin`.
+Panel: şirkətin admin girişi, baza URL-ləri, deploy statusu, admin şifrəsini sıfırlamaq, domen bağlamaq, bütün şirkətləri yeniləmək.
+Şirkətlərin siyahısı idarəetmə serverinin bazasında (`ctl_companies`) saxlanır.
+
 ## Lokal işə salmaq
 
 ```

@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="az">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Master — Superadmin</title>
+<style>
+  :root { --bg:#f4f3ef; --card:#fff; --ink:#1c1c1a; --mute:#6c6b66; --line:#e2e0d9; --acc:#1f4f8a; --ok:#1f6b4a; --warn:#a3401f; --pend:#9a6b12; --code:#f7f6f2; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#141513; --card:#1d1f1c; --ink:#ecebe5; --mute:#a2a19a; --line:#2f312d; --acc:#7aa7e0; --ok:#5fb394; --warn:#e48262; --pend:#dbb05a; --code:#252723; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:640px; margin:0 auto; padding:20px 16px 60px; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px; }
+  h1 { font-size:20px; margin:0; } h2 { font-size:16px; margin:0 0 10px; }
+  .sub { color:var(--mute); font-size:13px; margin:2px 0 0; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+  label { display:block; font-size:12px; color:var(--mute); margin:10px 0 4px; }
+  input, select { width:100%; padding:10px 11px; font-size:16px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); }
+  button { padding:10px 14px; font-size:14px; font-weight:600; border:0; border-radius:8px; background:var(--acc); color:#fff; cursor:pointer; }
+  button.block { width:100%; margin-top:14px; padding:12px; font-size:15px; }
+  button.sec { background:transparent; color:var(--ink); border:1px solid var(--line); }
+  button.warn { background:var(--warn); }
+  button.sm { padding:6px 10px; font-size:12px; }
+  button:disabled { opacity:.5; cursor:default; }
+  .row { display:flex; gap:8px; } .row > * { flex:1; }
+  .co { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:12px 0; border-top:1px solid var(--line); cursor:pointer; }
+  .co:first-of-type { border-top:0; }
+  .co b { display:block; } .co small { color:var(--mute); font-size:12px; }
+  .badge { font-size:11px; font-weight:700; padding:3px 8px; border-radius:99px; white-space:nowrap; border:1px solid currentColor; }
+  .b-ready { color:var(--ok); } .b-creating { color:var(--pend); } .b-failed { color:var(--warn); }
+  .kv { display:grid; grid-template-columns:120px 1fr; gap:6px 10px; font-size:13px; align-items:start; }
+  .kv dt { color:var(--mute); } .kv dd { margin:0; word-break:break-all; }
+  code, .mono { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; background:var(--code); border:1px solid var(--line); border-radius:6px; padding:2px 6px; }
+  .secret { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .note { font-size:12px; color:var(--mute); margin-top:8px; }
+  .err { color:var(--warn); font-size:13px; margin-top:10px; min-height:1em; }
+  .okmsg { color:var(--ok); font-size:13px; margin-top:10px; }
+  a { color:var(--acc); }
+  .empty { color:var(--mute); text-align:center; padding:20px 0; }
+  .warnbox { border-color:var(--warn); }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1>Master — Superadmin</h1><p class="sub">Şirkətlər, serverlər, bazalar</p></div>
+    <button class="sec sm" id="logout" hidden>Çıxış</button>
+  </header>
+
+  <!-- login -->
+  <section class="card" id="v-login">
+    <label for="pw">Superadmin şifrəsi</label>
+    <input id="pw" type="password" autocomplete="current-password">
+    <button class="block" id="go">Daxil ol</button>
+    <div class="err" id="lerr"></div>
+  </section>
+
+  <!-- list -->
+  <section id="v-list" hidden>
+    <div class="card warnbox" id="noapi" hidden>
+      <b>Render API açarı yoxdur.</b>
+      <p class="note">Şirkət yaratmaq üçün bu serverin Render ayarlarında <code>RENDER_API_KEY</code> və <code>RENDER_OWNER_ID</code> olmalıdır.</p>
+    </div>
+    <div class="row" style="margin-bottom:12px">
+      <button id="new">+ Şirkət yarat</button>
+      <button class="sec" id="deployAll">Hamısını yenilə</button>
+    </div>
+    <div class="card" id="list"></div>
+    <div class="err" id="gerr"></div>
+  </section>
+
+  <!-- create -->
+  <section class="card" id="v-new" hidden>
+    <h2>Yeni şirkət</h2>
+    <label for="n-name">Şirkətin adı</label>
+    <input id="n-name" maxlength="80" placeholder="Məs. Usta Group MMC">
+    <label for="n-slug">Qısa ad (server adında istifadə olunur: a-z, 0-9, -)</label>
+    <input id="n-slug" maxlength="20" placeholder="usta-group">
+    <label for="n-phone">Şirkət adminin telefonu</label>
+    <input id="n-phone" inputmode="numeric" placeholder="994501234567">
+    <div class="row">
+      <div><label for="n-web">Server planı</label><select id="n-web"></select></div>
+      <div><label for="n-db">Baza planı</label><select id="n-db"></select></div>
+    </div>
+    <p class="note">Hər şirkət üçün Render-də 1 server və 1 PostgreSQL yaradılır. Ödənişli planlar Render hesabınızdan aylıq ödənilir. "free" server 15 dəq boş qalanda yatır — yalnız sınaq üçün.</p>
+    <div class="row" style="margin-top:12px">
+      <button class="sec" id="n-cancel">Ləğv et</button>
+      <button id="n-go">Yarat</button>
+    </div>
+    <div class="err" id="nerr"></div>
+  </section>
+
+  <!-- detail -->
+  <section id="v-info" hidden>
+    <button class="sec sm" id="back" style="margin-bottom:12px">← Siyahı</button>
+    <div class="card" id="info"></div>
+    <div class="card">
+      <h2>Admin şifrəsini sıfırla</h2>
+      <p class="note">Yeni müvəqqəti şifrə yaradılır, server yenidən başlayır (1–3 dəq). Admin ilk girişdə öz şifrəsini yaradır.</p>
+      <label for="r-phone">Admin telefonu</label>
+      <input id="r-phone" inputmode="numeric">
+      <button class="block warn" id="r-go">Sıfırla</button>
+      <div id="r-out"></div>
+    </div>
+    <div class="card">
+      <h2>Domen bağla</h2>
+      <label for="d-name">Domen</label>
+      <input id="d-name" placeholder="app.sirket.az">
+      <button class="block" id="d-go">Əlavə et</button>
+      <div id="d-out"></div>
+    </div>
+  </section>
+</main>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const el = (tag, attrs, ...kids) => {
+    const e = document.createElement(tag);
+    Object.entries(attrs || {}).forEach(([k, v]) => { if (k === 'class') e.className = v; else if (k === 'text') e.textContent = v; else if (k.startsWith('on')) e[k] = v; else e.setAttribute(k, v); });
+    kids.flat().forEach(k => { if (k !== null && k !== undefined) e.append(k.nodeType ? k : document.createTextNode(String(k))); });
+    return e;
+  };
+  let token = '', meta = null, current = null, timer = null;
+  const views = ['v-login', 'v-list', 'v-new', 'v-info'];
+  const show = v => { views.forEach(x => { $(x).hidden = x !== v; }); $('logout').hidden = v === 'v-login'; };
+  const STATUS = { ready: 'Hazır', creating: 'Qurulur', failed: 'Xəta' };
+  const ERR = { bad_login: 'Şifrə səhvdir.', locked: 'Çox səhv cəhd. 15 dəqiqə sonra yenidən cəhd edin.', forbidden: 'Sessiya bitib. Yenidən daxil olun.' };
+
+  async function api(act, body) {
+    const r = await fetch('/super/api/' + act, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token }, body || {})) });
+    const j = await r.json().catch(() => ({ ok: false, error: 'server' }));
+    if (j.error === 'forbidden' && act !== 'login') { token = ''; show('v-login'); }
+    return j;
+  }
+  const msg = e => ERR[e] || e || 'Xəta';
+
+  function copyBtn(text) {
+    return el('button', { class: 'sec sm', text: 'Kopyala', onclick: async ev => { try { await navigator.clipboard.writeText(text); ev.target.textContent = 'Kopyalandı'; } catch (e) { ev.target.textContent = 'Alınmadı'; } } });
+  }
+  function secret(text) {
+    const code = el('span', { class: 'mono', text: '••••••••' });
+    let open = false;
+    const b = el('button', { class: 'sec sm', text: 'Göstər', onclick: () => { open = !open; code.textContent = open ? text : '••••••••'; b.textContent = open ? 'Gizlət' : 'Göstər'; } });
+    return el('span', { class: 'secret' }, code, b, copyBtn(text));
+  }
+  const link = (href, text) => el('a', { href, target: '_blank', rel: 'noopener noreferrer', text: text || href });
+
+  // ---- login
+  $('go').onclick = async () => {
+    $('lerr').textContent = ''; $('go').disabled = true;
+    try {
+      const r = await api('login', { password: $('pw').value });
+      if (!r.ok) { $('lerr').textContent = msg(r.error); return; }
+      token = r.token; $('pw').value = ''; await loadList();
+    } catch (e) { $('lerr').textContent = 'Serverə qoşulmaq olmadı.'; }
+    finally { $('go').disabled = false; }
+  };
+  $('pw').onkeydown = e => { if (e.key === 'Enter') $('go').click(); };
+  $('logout').onclick = async () => { await api('logout'); token = ''; show('v-login'); };
+
+  // ---- list
+  async function loadList() {
+    const r = await api('list');
+    if (!r.ok) { $('gerr').textContent = msg(r.error); return; }
+    meta = r.data;
+    $('noapi').hidden = meta.api;
+    $('new').disabled = !meta.api;
+    const box = $('list'); box.textContent = '';
+    if (!meta.companies.length) box.append(el('div', { class: 'empty', text: 'Hələ şirkət yoxdur.' }));
+    meta.companies.forEach(c => {
+      box.append(el('div', { class: 'co', onclick: () => openInfo(c.id) },
+        el('div', {}, el('b', { text: c.name }), el('small', { text: c.slug + ' · ' + (c.domains[0] || c.url || c.step) })),
+        el('span', { class: 'badge b-' + c.status, text: STATUS[c.status] || c.status })));
+    });
+    show('v-list');
+    clearTimeout(timer);
+    if (meta.companies.some(c => c.status === 'creating')) timer = setTimeout(() => { if (!$('v-list').hidden) loadList(); }, 8000);
+  }
+  $('deployAll').onclick = async () => {
+    if (!confirm('Bütün şirkət serverləri yeni kodla yenidən qurulsun? Hər biri 1–3 dəq işləməyəcək.')) return;
+    $('deployAll').disabled = true; $('gerr').textContent = '';
+    const r = await api('deployAll');
+    $('deployAll').disabled = false;
+    if (!r.ok) { $('gerr').textContent = msg(r.error); return; }
+    const bad = r.data.results.filter(x => !x.ok);
+    $('gerr').textContent = bad.length ? 'Alınmadı: ' + bad.map(x => x.slug + ' (' + x.error + ')').join(', ') : '';
+    alert('Yeniləmə başladı: ' + r.data.results.filter(x => x.ok).length + ' server.');
+  };
+
+  // ---- create
+  const slugify = s => String(s || '').replace(/[əıöüşçğƏIİÖÜŞÇĞ]/g, c => ({ ə:'e',ı:'i',ö:'o',ü:'u',ş:'s',ç:'c',ğ:'g',Ə:'e',I:'i',İ:'i',Ö:'o',Ü:'u',Ş:'s',Ç:'c',Ğ:'g' })[c]).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 20).replace(/-+$/, '');
+  let slugTouched = false;
+  $('new').onclick = () => {
+    ['n-name', 'n-slug', 'n-phone'].forEach(id => { $(id).value = ''; }); slugTouched = false; $('nerr').textContent = '';
+    $('n-web').textContent = ''; meta.webPlans.forEach(p => $('n-web').append(el('option', { value: p, text: p })));
+    $('n-db').textContent = ''; meta.dbPlans.forEach(p => $('n-db').append(el('option', { value: p, text: p })));
+    $('n-web').value = 'starter'; $('n-db').value = 'basic_256mb';
+    show('v-new'); $('n-name').focus();
+  };
+  $('n-name').oninput = () => { if (!slugTouched) $('n-slug').value = slugify($('n-name').value); };
+  $('n-slug').oninput = () => { slugTouched = true; };
+  $('n-cancel').onclick = () => loadList();
+  $('n-go').onclick = async () => {
+    $('nerr').textContent = '';
+    const body = { name: $('n-name').value, slug: $('n-slug').value, adminPhone: $('n-phone').value, webPlan: $('n-web').value, dbPlan: $('n-db').value };
+    if (!confirm('"' + body.name + '" üçün Render-də server (' + body.webPlan + ') və baza (' + body.dbPlan + ') yaradılsın? Ödənişli planlar aylıq hesablanır.')) return;
+    $('n-go').disabled = true;
+    try {
+      const r = await api('create', body);
+      if (!r.ok) { $('nerr').textContent = msg(r.error); return; }
+      openInfo(r.data.company.id);
+    } finally { $('n-go').disabled = false; }
+  };
+
+  // ---- detail
+  $('back').onclick = () => loadList();
+  async function openInfo(id) {
+    clearTimeout(timer);
+    current = id;
+    $('r-out').textContent = ''; $('d-out').textContent = ''; $('d-name').value = '';
+    const box = $('info'); box.textContent = 'Yüklənir…'; show('v-info');
+    const r = await api('info', { id });
+    if (!r.ok) { box.textContent = msg(r.error); return; }
+    const d = r.data, c = d.company;
+    $('r-phone').value = c.adminPhone;
+    const rows = [
+      ['Şirkət', c.name],
+      ['Status', el('span', { class: 'badge b-' + c.status, text: STATUS[c.status] || c.status })],
+      ['Addım', c.step || '—'],
+      c.error ? ['Xəta', el('span', { style: 'color:var(--warn)', text: c.error })] : null,
+      ['Tətbiq', c.url ? link(c.url) : '—'],
+      ['Admin telefonu', el('span', { class: 'secret' }, el('span', { class: 'mono', text: c.adminPhone }), copyBtn(c.adminPhone))],
+      ['Admin şifrəsi', secret(c.adminPassword)],
+      ['Xidmət səhifəsi', c.url ? link(c.url + '/admin') : '—'],
+      ['Server deploy', d.deploy ? (d.deploy.error || d.deploy.status) : '—'],
+      ['Domenlər', d.domains.length ? d.domains.map(x => x.name + ' (' + x.status + ')').join(', ') : (c.domains.join(', ') || '—')],
+      ['Planlar', c.webPlan + ' / ' + c.dbPlan + ' · ' + c.region],
+      ['Render server', c.renderService ? link(c.renderService, 'Panelda aç') : '—'],
+      ['Render baza', c.renderDb ? link(c.renderDb, 'Panelda aç') : '—']
+    ];
+    if (d.db && !d.db.error) {
+      rows.push(['Baza statusu', d.db.status + (d.db.expiresAt ? ' · bitir: ' + String(d.db.expiresAt).slice(0, 10) : '')]);
+      rows.push(['Baza adı / user', d.db.database + ' / ' + d.db.user]);
+      rows.push(['Daxili URL', secret(d.db.internal)]);
+      rows.push(['Xarici URL', secret(d.db.external)]);
+    } else if (d.db && d.db.error) rows.push(['Baza', d.db.error]);
+    const dl = el('dl', { class: 'kv' });
+    rows.filter(Boolean).forEach(([k, v]) => dl.append(el('dt', { text: k }), el('dd', {}, v)));
+    box.textContent = '';
+    box.append(el('h2', { text: c.name }), dl);
+    box.append(el('p', { class: 'note', text: 'Admin şifrəsi müvəqqətidir: şirkətin admini ilk girişdə yenisini yaradır. Xarici baza URL-i yalnız IP allowlist-ə əlavə olunan ünvandan işləyir.' }));
+    if (c.status === 'failed') box.append(el('button', { class: 'block', text: 'Quraşdırmanı davam etdir', onclick: async () => { const x = await api('retry', { id: c.id }); if (!x.ok) alert(msg(x.error)); else openInfo(c.id); } }));
+    if (c.status === 'creating') timer = setTimeout(() => { if (current === id && !$('v-info').hidden) openInfo(id); }, 8000);
+  }
+
+  $('r-go').onclick = async () => {
+    if (!confirm('Admin şifrəsi sıfırlansın? Şirkətin serveri 1–3 dəq yenidən başlayacaq.')) return;
+    $('r-go').disabled = true; $('r-out').textContent = '';
+    try {
+      const r = await api('resetAdmin', { id: current, adminPhone: $('r-phone').value });
+      if (!r.ok) { $('r-out').append(el('div', { class: 'err', text: msg(r.error) })); return; }
+      $('r-out').append(el('div', { class: 'okmsg' }, 'Hazırdır. 1–3 dəq sonra bu məlumatla daxil olun: ', el('br'),
+        'Telefon: ', el('span', { class: 'mono', text: r.data.adminPhone }), el('br'), 'Şifrə: ', secret(r.data.adminPassword)));
+    } finally { $('r-go').disabled = false; }
+  };
+
+  $('d-go').onclick = async () => {
+    $('d-go').disabled = true; $('d-out').textContent = '';
+    try {
+      const r = await api('addDomain', { id: current, domain: $('d-name').value });
+      if (!r.ok) { $('d-out').append(el('div', { class: 'err', text: msg(r.error) })); return; }
+      const x = r.data.dns;
+      $('d-out').append(el('div', { class: 'okmsg', text: 'Domen Render-ə əlavə olundu. İndi domen qeydiyyatçısının DNS panelində bu qeydi yazın:' }),
+        el('dl', { class: 'kv', style: 'margin-top:8px' },
+          el('dt', { text: 'Tip' }), el('dd', {}, el('span', { class: 'mono', text: x.type })),
+          el('dt', { text: 'Ad (Host)' }), el('dd', {}, el('span', { class: 'mono', text: x.name })),
+          el('dt', { text: 'Dəyər' }), el('dd', {}, el('span', { class: 'mono', text: x.value }), ' ', copyBtn(x.value))),
+        el('p', { class: 'note', text: 'DNS yayılması 5–30 dəq çəkir. Render sonra SSL sertifikatını özü verir. Statusu bu səhifədə "Domenlər" sətrində görəcəksiniz.' }));
+    } finally { $('d-go').disabled = false; }
+  };
+
+  show('v-login');
+})();
+</script>
+</body>
+</html>

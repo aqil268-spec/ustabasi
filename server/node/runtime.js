@@ -301,6 +301,7 @@ function createRuntime(opts) {
     if (process.env.ADMIN_NAME) src = src.replace(/^const ADMIN_NAME = .*$/m, 'const ADMIN_NAME = ' + q(process.env.ADMIN_NAME) + ';');
     if (process.env.ADMIN_PHONE) src = src.replace(/^const ADMIN_PHONE = .*$/m, 'const ADMIN_PHONE = ' + q(process.env.ADMIN_PHONE) + ';');
     if (process.env.ADMIN_PASSWORD) src = src.replace(/^const ADMIN_PASSWORD = .*$/m, 'const ADMIN_PASSWORD = ' + q(process.env.ADMIN_PASSWORD) + ';');
+    if (process.env.COMPANY_NAME) src = src.replace(/^(\s*companyName: ).*$/m, '$1' + q(process.env.COMPANY_NAME) + ',');
     const fns = ['setup', 'doPost', 'doGet', 'onSheetChange', 'cleanup', 'dailyBackup', 'hourly', 'weeklyMail', 'setAdminLogin', 'clearCache', 'seedTestData', 'removeTestData'];
     const exp = fns.map(f => f + ': typeof ' + f + ' === "function" ? ' + f + ' : null').join(', ');
     vm.runInContext(src + '\n;this.__api = { ' + exp + ', SCHEMA, VERSION };', ctx, { filename: 'Code.gs' });
