@@ -1,7 +1,7 @@
 /* Ustabaşı — service worker.
    HTML və config: əvvəl şəbəkə (brauzer keşini keçərək), 3.5 san cavab yoxdursa — saxlanan nüsxə.
    Versiyalı fayllar (?v=…): saxlanan nüsxədən dərhal (versiya dəyişəndə ünvan da dəyişir). */
-const V = '0.2.0';
+const V = '0.3.0';
 const CACHE = 'ustabasi-v' + V;
 const SHELL = [
   './', './index.html', './u.html', './config.js', './manifest.webmanifest',

@@ -1,4 +1,4 @@
-/* Ustabaşı — ümumi köməkçilər: API, dil, format, dialoq, ikonlar */
+/* Ustabaşı — ümumi köməkçilər: API, dil, format, dialoq, ikonlar, PDF, offline növbə */
 (function () {
   'use strict';
   const CFG = window.USTABASI_CONFIG || {};
@@ -56,8 +56,10 @@
   };
 
   // ---------- language ----------
+  const LANGS = ['az', 'ru', 'en', 'tr'];
+  const LANG_NAMES = { az: 'Azərbaycan', ru: 'Русский', en: 'English', tr: 'Türkçe' };
   let lang = LS.get('ub_lang') || 'az';
-  function setLang(l) { lang = ['az', 'ru', 'en'].indexOf(l) >= 0 ? l : 'az'; LS.set('ub_lang', lang); document.documentElement.lang = lang; }
+  function setLang(l, temp) { lang = LANGS.indexOf(l) >= 0 ? l : 'az'; if (!temp) LS.set('ub_lang', lang); document.documentElement.lang = lang; }
   function getLang() { return lang; }
   function t(key, vars, forLang) {
     const D = window.I18N || {};
@@ -135,7 +137,14 @@
     more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
     copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
     map: '<path d="M9 4l6 2 5-2v15l-5 2-6-2-5 2V6z"/><path d="M9 4v15M15 6v15"/>',
-    edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/>'
+    edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/>',
+    alert: '<path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17.5h.01"/>',
+    shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/>',
+    cash: '<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v5M18 9.5v5"/>',
+    journal: '<path d="M6 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6z"/><path d="M6 3v18M10 8h5M10 12h5M10 16h3"/>',
+    offline: '<path d="M3 3l18 18"/><path d="M8.5 16.4a5 5 0 0 1 7 0M5 12.9a10 10 0 0 1 4-2.5M12 8.5c2.8 0 5.3 1.1 7 2.9M12 20h.01"/>',
+    receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+    lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'
   };
   function icon(name, size) {
     const s = size || 18;
@@ -288,17 +297,238 @@
   }
 
   function downloadCsv(name, rows) {
-    const csv = '﻿' + rows.map(r => r.map(c => { const s = String(c === undefined || c === null ? '' : c); return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(';')).join('\n');
+    // Excel-də düstur kimi işləyə biləcək mətn qorunur (T-07).
+    const safe = s => /^[=+\-@]/.test(s) && !/^[+-]?\d/.test(s) ? "'" + s : s;
+    const csv = '\ufeff' + rows.map(r => r.map(c => { const s = safe(String(c === undefined || c === null ? '' : c)); return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(';')).join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
   }
 
+
+  // ---------- device id (link 1 telefona bağlanır — BR-63) ----------
+  function deviceId() {
+    let d = LS.get('ub_dev');
+    if (!d) {
+      const a = new Uint8Array(16);
+      (window.crypto || {}).getRandomValues ? crypto.getRandomValues(a) : a.forEach((x, i) => { a[i] = Math.floor(Math.random() * 256); });
+      d = 'd' + Array.from(a).map(b => ('0' + b.toString(16)).slice(-2)).join('');
+      LS.set('ub_dev', d);
+    }
+    return d;
+  }
+
+  // ---------- məbləğ sözlə (PDF qəbzlər) ----------
+  const W = {
+    az: { u: ['sıfır', 'bir', 'iki', 'üç', 'dörd', 'beş', 'altı', 'yeddi', 'səkkiz', 'doqquz'], t: ['', 'on', 'iyirmi', 'otuz', 'qırx', 'əlli', 'altmış', 'yetmiş', 'səksən', 'doxsan'], h: 'yüz', k: 'min', m: 'milyon', cur: 'manat', sub: 'qəpik', oneH: false, oneK: false },
+    tr: { u: ['sıfır', 'bir', 'iki', 'üç', 'dört', 'beş', 'altı', 'yedi', 'sekiz', 'dokuz'], t: ['', 'on', 'yirmi', 'otuz', 'kırk', 'elli', 'altmış', 'yetmiş', 'seksen', 'doksan'], h: 'yüz', k: 'bin', m: 'milyon', cur: 'manat', sub: 'kepik', oneH: false, oneK: false }
+  };
+  function wordsTurkic(n, L) {
+    const D = W[L];
+    if (n === 0) return D.u[0];
+    const three = x => {
+      const h = Math.floor(x / 100), r = x % 100, out = [];
+      if (h) out.push((h > 1 ? D.u[h] + ' ' : '') + D.h);
+      if (r >= 10) out.push(D.t[Math.floor(r / 10)]);
+      if (r % 10) out.push(D.u[r % 10]);
+      return out.join(' ');
+    };
+    const m = Math.floor(n / 1e6), k = Math.floor(n / 1000) % 1000, r = n % 1000, out = [];
+    if (m) out.push(three(m) + ' ' + D.m);
+    if (k) out.push((k > 1 ? three(k) + ' ' : '') + D.k);
+    if (r) out.push(three(r));
+    return out.join(' ');
+  }
+  function wordsEn(n) {
+    const u = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+    const t = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+    if (n === 0) return u[0];
+    const three = x => {
+      const h = Math.floor(x / 100), r = x % 100, out = [];
+      if (h) out.push(u[h] + ' hundred');
+      if (r) out.push(r < 20 ? u[r] : t[Math.floor(r / 10)] + (r % 10 ? '-' + u[r % 10] : ''));
+      return out.join(' ');
+    };
+    const m = Math.floor(n / 1e6), k = Math.floor(n / 1000) % 1000, r = n % 1000, out = [];
+    if (m) out.push(three(m) + ' million'); if (k) out.push(three(k) + ' thousand'); if (r) out.push(three(r));
+    return out.join(' ');
+  }
+  function plRu(n, f) { const a = n % 100, b = n % 10; return a > 10 && a < 20 ? f[2] : b === 1 ? f[0] : b >= 2 && b <= 4 ? f[1] : f[2]; }
+  function wordsRu(n, fem) {
+    const um = ['ноль', 'один', 'два', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять', 'десять', 'одиннадцать', 'двенадцать', 'тринадцать', 'четырнадцать', 'пятнадцать', 'шестнадцать', 'семнадцать', 'восемнадцать', 'девятнадцать'];
+    const t = ['', '', 'двадцать', 'тридцать', 'сорок', 'пятьдесят', 'шестьдесят', 'семьдесят', 'восемьдесят', 'девяносто'];
+    const h = ['', 'сто', 'двести', 'триста', 'четыреста', 'пятьсот', 'шестьсот', 'семьсот', 'восемьсот', 'девятьсот'];
+    if (n === 0) return um[0];
+    const three = (x, f) => {
+      const out = [], r = x % 100;
+      if (Math.floor(x / 100)) out.push(h[Math.floor(x / 100)]);
+      if (r >= 20) { out.push(t[Math.floor(r / 10)]); if (r % 10) out.push(f && r % 10 < 3 ? ['', 'одна', 'две'][r % 10] : um[r % 10]); }
+      else if (r) out.push(f && r < 3 ? ['', 'одна', 'две'][r] : um[r]);
+      return out.join(' ');
+    };
+    const m = Math.floor(n / 1e6), k = Math.floor(n / 1000) % 1000, r = n % 1000, out = [];
+    if (m) out.push(three(m, false) + ' ' + plRu(m, ['миллион', 'миллиона', 'миллионов']));
+    if (k) out.push(three(k, true) + ' ' + plRu(k, ['тысяча', 'тысячи', 'тысяч']));
+    if (r) out.push(three(r, fem));
+    return out.join(' ');
+  }
+  function amountWords(v, L) {
+    const x = round2(Math.abs(n(v))), whole = Math.floor(x), cents = Math.round((x - whole) * 100);
+    let s;
+    if (L === 'en') s = wordsEn(whole) + ' manat ' + pad(cents) + ' qapik';
+    else if (L === 'ru') s = wordsRu(whole, false) + ' ' + plRu(whole, ['манат', 'маната', 'манатов']) + ' ' + pad(cents) + ' ' + plRu(cents, ['гяпик', 'гяпика', 'гяпиков']);
+    else { const D = W[L] || W.az; s = wordsTurkic(whole, W[L] ? L : 'az') + ' ' + D.cur + ' ' + pad(cents) + ' ' + D.sub; }
+    return s.charAt(0).toLocaleUpperCase(L === 'az' || L === 'tr' ? 'tr' : 'en') + s.slice(1);
+  }
+
+  // ---------- PDF (şəkil kimi 1 səhifə; xarici kitabxana yoxdur) ----------
+  function pdfFromCanvas(canvas, wPt, hPt) {
+    const jpeg = atob(canvas.toDataURL('image/jpeg', 0.92).split(',')[1]);
+    const img = new Uint8Array(jpeg.length); for (let i = 0; i < jpeg.length; i++) img[i] = jpeg.charCodeAt(i);
+    const enc = s => new TextEncoder().encode(s);
+    const parts = [], offs = [];
+    let len = 0;
+    const push = b => { parts.push(b); len += b.length; };
+    const obj = (i, body, stream) => {
+      offs[i] = len;
+      push(enc(i + ' 0 obj\n' + body + (stream ? '\nstream\n' : '\nendobj\n')));
+      if (stream) { push(stream); push(enc('\nendstream\nendobj\n')); }
+    };
+    const content = enc('q ' + wPt + ' 0 0 ' + hPt + ' 0 0 cm /Im0 Do Q');
+    push(enc('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'));
+    obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+    obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    obj(3, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + wPt + ' ' + hPt + '] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>');
+    obj(4, '<< /Type /XObject /Subtype /Image /Width ' + canvas.width + ' /Height ' + canvas.height + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + img.length + ' >>', img);
+    obj(5, '<< /Length ' + content.length + ' >>', content);
+    const xref = len;
+    let x = 'xref\n0 6\n0000000000 65535 f \n';
+    for (let i = 1; i <= 5; i++) x += String(offs[i]).padStart(10, '0') + ' 00000 n \n';
+    push(enc(x + 'trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF'));
+    return new Blob(parts, { type: 'application/pdf' });
+  }
+
+  /** Qəbz (avans çeki və ya müştəri ödəniş qəbzi) — A5 portret, alanın dilində (S-31, S-32). */
+  function receiptCanvas(r, L) {
+    const tt = (k, v) => t(k, v, L);
+    const Wd = 1240, Ht = 1754, c = document.createElement('canvas');
+    c.width = Wd; c.height = Ht;
+    const g = c.getContext('2d');
+    const F = '"IBM Plex Sans", "Segoe UI", Roboto, Arial, sans-serif';
+    g.fillStyle = '#fff'; g.fillRect(0, 0, Wd, Ht);
+    // loqo
+    g.save(); g.translate(90, 80); g.scale(1.9, 1.9);
+    g.fillStyle = '#FF7A1A'; g.fill(new Path2D('M32 4C20.4 4 11 13.2 11 24.6 11 39 32 58 32 58S53 39 53 24.6C53 13.2 43.6 4 32 4Z'));
+    g.strokeStyle = '#16191D'; g.lineWidth = 3.6; g.lineCap = 'round'; g.lineJoin = 'round';
+    g.stroke(new Path2D('M21 26L32 16L43 26')); g.stroke(new Path2D('M24.5 31.5L30 37L40 27'));
+    g.restore();
+    const co = r.company || {};
+    g.fillStyle = '#111'; g.font = '700 46px ' + F; g.fillText(co.name || 'Ustabaşı', 230, 135);
+    g.font = '400 28px ' + F; g.fillStyle = '#444';
+    let y = 180;
+    [co.voen ? tt('voen') + ': ' + co.voen : '', [co.address, co.phone].filter(Boolean).join(' · ')].filter(Boolean).forEach(line => { g.fillText(line, 230, y); y += 38; });
+    g.strokeStyle = '#111'; g.lineWidth = 3; g.beginPath(); g.moveTo(90, 280); g.lineTo(Wd - 90, 280); g.stroke();
+    g.fillStyle = '#111'; g.font = '700 54px ' + F;
+    g.fillText(tt(r.kind === 'ADV' ? 'pdf_adv_title' : 'pdf_pay_title'), 90, 370);
+    g.font = '600 34px ' + F; g.fillStyle = '#FF7A1A'; g.fillText('№ ' + (r.no || '—'), 90, 425);
+    const rows = [
+      [tt('date'), fmtDateL(r.date, L)],
+      [tt(r.kind === 'ADV' ? 'pdf_payer' : 'pdf_customer'), r.payer + (r.payerVoen ? ' · ' + tt('voen') + ' ' + r.payerVoen : '')],
+      [tt(r.kind === 'ADV' ? 'pdf_worker' : 'pdf_receiver'), r.payee],
+      r.site ? [tt('site'), r.site] : null,
+      r.method ? [tt('pay_method'), tt('pm_' + r.method)] : null,
+      [tt('foreman'), r.by || '—'],
+      [tt('pdf_confirmed'), r.confirmedAt ? String(r.confirmedAt).replace('T', ' ').slice(0, 16) : '—']
+    ].filter(Boolean);
+    y = 510;
+    g.font = '400 32px ' + F;
+    rows.forEach(rw => {
+      g.fillStyle = '#666'; g.fillText(rw[0], 90, y);
+      g.fillStyle = '#111'; wrapText(g, String(rw[1] || ''), 470, y, Wd - 560, 40);
+      y += 70;
+      g.strokeStyle = '#ddd'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(90, y - 42); g.lineTo(Wd - 90, y - 42); g.stroke();
+    });
+    y += 30;
+    g.fillStyle = '#F4F5F6'; g.fillRect(90, y, Wd - 180, 230);
+    g.fillStyle = '#666'; g.font = '400 30px ' + F; g.fillText(tt('amount'), 130, y + 60);
+    g.fillStyle = '#111'; g.font = '700 72px ' + F; g.fillText(num(r.amount) + ' ₼', 130, y + 145);
+    g.font = '400 28px ' + F; g.fillStyle = '#333'; wrapText(g, amountWords(r.amount, L), 130, y + 200, Wd - 260, 34);
+    y += 330;
+    g.font = '400 28px ' + F; g.fillStyle = '#111';
+    const sig = (label, x) => { g.fillText(label, x, y); g.beginPath(); g.moveTo(x, y + 70); g.lineTo(x + 420, y + 70); g.strokeStyle = '#111'; g.lineWidth = 2; g.stroke(); };
+    sig(tt(r.kind === 'ADV' ? 'gave' : 'received_from'), 90); sig(tt('received'), 730);
+    g.fillStyle = '#888'; g.font = '400 24px ' + F;
+    wrapText(g, tt('pdf_footer'), 90, Ht - 110, Wd - 180, 30);
+    return c;
+  }
+  function wrapText(g, text, x, y, maxW, lh) {
+    const words = String(text).split(' '); let line = '';
+    words.forEach(w => { const test = line ? line + ' ' + w : w; if (g.measureText(test).width > maxW && line) { g.fillText(line, x, y); y += lh; line = w; } else line = test; });
+    if (line) g.fillText(line, x, y);
+    return y;
+  }
+  function fmtDateL(s, L) {
+    if (!s) return '';
+    const [y, m, d] = String(s).slice(0, 10).split('-');
+    return Number(d) + ' ' + (t('months', null, L).split(',')[Number(m) - 1] || m) + ' ' + y;
+  }
+  function receiptPdf(r, L) {
+    const c = receiptCanvas(r, L || r.lang || lang);
+    return pdfFromCanvas(c, 595.28, 841.89);
+  }
+  function blobToDataUrl(b) { return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(b); }); }
+  /** PDF-i telefonun "Paylaş" menyusu ilə göndərir (WhatsApp); olmazsa yükləyir (S-34). */
+  async function sharePdf(blob, name, text) {
+    const file = typeof File === 'function' ? new File([blob], name, { type: 'application/pdf' }) : null;
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: name, text: text || '' }); return 'shared'; }
+      catch (e) { if (e && e.name === 'AbortError') return 'cancelled'; }
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+    return 'downloaded';
+  }
+
+  // ---------- offline növbə (IndexedDB; olmasa localStorage) ----------
+  const Q = (function () {
+    const KEY = 'ub_queue';
+    let dbp = null;
+    function db() {
+      if (dbp) return dbp;
+      dbp = new Promise((res) => {
+        try {
+          const r = indexedDB.open('ustabasi', 1);
+          r.onupgradeneeded = () => r.result.createObjectStore('q', { keyPath: 'id' });
+          r.onsuccess = () => res(r.result);
+          r.onerror = () => res(null);
+        } catch (e) { res(null); }
+      });
+      return dbp;
+    }
+    function lsAll() { try { return JSON.parse(LS.get(KEY) || '[]'); } catch (e) { return []; } }
+    async function tx(mode, fn) {
+      const d = await db();
+      if (!d) return null;
+      return new Promise((res, rej) => { const x = d.transaction('q', mode); const st = x.objectStore('q'); const r = fn(st); x.oncomplete = () => res(r && r.result); x.onerror = () => rej(x.error); });
+    }
+    return {
+      async all() { const d = await db(); if (!d) return lsAll(); const r = await tx('readonly', st => st.getAll()); return (r || []).sort((a, b) => String(a.created).localeCompare(String(b.created))); },
+      async put(item) { const d = await db(); if (!d) { const l = lsAll().filter(x => x.id !== item.id); l.push(item); LS.set(KEY, JSON.stringify(l)); return; } await tx('readwrite', st => st.put(item)); },
+      async del(id) { const d = await db(); if (!d) { LS.set(KEY, JSON.stringify(lsAll().filter(x => x.id !== id))); return; } await tx('readwrite', st => st.delete(id)); },
+      async clear() { const d = await db(); if (!d) { LS.set(KEY, null); return; } await tx('readwrite', st => st.clear()); }
+    };
+  })();
+  function nowLocalIso() { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()); }
+  function rid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
+
   window.UBCore = {
     CFG, LS, API, err, t, setLang, getLang, errorText,
     esc, n, round2, num, money, pad, todayISO, monthISO, shiftMonth, fmtDate, fmtTime, monthName, weekday, initials, shortName,
     icon, logo, toast, dialog, confirmDlg, promptDlg, busy, formData, bind, options,
-    appBase, linkUrl, b64url, fromB64url, waPhone, whatsapp, copyText, getPosition, compressImage, downloadCsv
+    appBase, linkUrl, b64url, fromB64url, waPhone, whatsapp, copyText, getPosition, compressImage, downloadCsv,
+    LANGS, LANG_NAMES, deviceId, amountWords, receiptPdf, receiptCanvas, pdfFromCanvas, sharePdf, blobToDataUrl, Q, nowLocalIso, rid
   };
 })();

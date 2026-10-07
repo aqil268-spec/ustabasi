@@ -1,4 +1,4 @@
-/* Ustabaşı — prarab ekranları */
+/* Ustabaşı — sahə rəisi ekranları */
 (function () {
   'use strict';
   const C = window.UBCore, UB = window.UB;
@@ -16,7 +16,7 @@
     const s = mySites(); return s.length ? s[0].id : '';
   }
 
-  const ENTRY_CHIP = { USTA_PENDING: '', ADMIN_PENDING: 'accent', APPROVED: 'ok', RETURNED: 'bad' };
+  const ENTRY_CHIP = { USTA_PENDING: '', ADMIN_PENDING: 'accent', APPROVED: 'ok', RETURNED: 'bad', REJECTED: 'bad' };
   const entryChip = e => '<span class="chip ' + (ENTRY_CHIP[e.status] || '') + '">' + esc(t('es_' + e.status)) + '</span>';
 
   // =========================================================== home
@@ -28,12 +28,23 @@
     const late = ws.filter(w => st[w.id].code === 'late').length;
     const absent = ws.length - present;
     const ustaWait = d.entries.filter(e => e.status === 'USTA_PENDING').length;
-    const returned = d.entries.filter(e => e.status === 'RETURNED');
-    const approvedAdv = d.advances.filter(a => a.status === 'APPROVED');
     const pendingSites = d.sites.filter(s => s.status === 'PENDING').length;
     const first = String(UB.user.name).split(' ')[0];
     const order = { absent: 0, late: 1, in: 2, left: 3 };
     const sorted = ws.slice().sort((a, b) => order[st[a.id].code] - order[st[b.id].code]);
+    // Geri qaytarılan və gözləyən işlər — hamısı 1 yerdə
+    const todo = [];
+    const ret = d.entries.filter(e => e.status === 'RETURNED').length; if (ret) todo.push(['#/work?f=RETURNED', 'n_returned', ret, 'warn']);
+    const advRet = d.advances.filter(a => a.status === 'RETURNED').length; if (advRet) todo.push(['#/advances', 'n_adv_returned', advRet, 'warn']);
+    const advGive = d.advances.filter(a => a.status === 'APPROVED').length; if (advGive) todo.push(['#/advances', 'n_adv_give', advGive, '']);
+    const advLink = d.advances.filter(a => a.status === 'GIVEN' || a.status === 'LINK_EXPIRED').length; if (advLink) todo.push(['#/advances', 'n_adv_link', advLink, '']);
+    const payRet = d.payments.filter(p => p.status === 'RETURNED').length; if (payRet) todo.push(['#/payments', 'n_pay_returned', payRet, 'warn']);
+    const payLink = d.payments.filter(p => p.status === 'APPROVED' || p.status === 'LINK_EXPIRED').length; if (payLink) todo.push(['#/payments', 'n_pay_link', payLink, '']);
+    const expRet = d.expenses.filter(x => x.status === 'RETURNED').length; if (expRet) todo.push(['#/expenses', 'n_exp_returned', expRet, 'warn']);
+    const siteRet = d.sites.filter(s => s.status === 'RETURNED').length; if (siteRet) todo.push(['#/sites', 'n_site_returned', siteRet, 'warn']);
+    const attRet = d.attendance.filter(a => a.status === 'RETURNED').length; if (attRet) todo.push(['#/manual', 'n_att_returned', attRet, 'warn']);
+    const conf = d.advances.filter(a => a.status === 'CONFLICT').length + d.payments.filter(p => p.status === 'CONFLICT').length; if (conf) todo.push(['#/advances', 'n_conflict_wait', conf, 'warn']);
+    const att = d.attempts.length; if (att) todo.push(['#/workers', 'n_attempts', att, 'warn']);
 
     view.innerHTML =
       '<div><div class="small muted">' + esc(C.weekday() + ', ' + C.fmtDate(d.today)) + '</div><h1>' + esc(t('hello', { name: first })) + '</h1></div>' +
@@ -44,12 +55,13 @@
       (ustaWait ? '<span class="chip">' + esc(t('n_usta_wait', { n: ustaWait })) + '</span>' : '') +
       (pendingSites ? '<span class="chip">' + esc(t('n_sites_wait', { n: pendingSites })) + '</span>' : '') +
       (!late && !absent && !ustaWait ? '<span class="chip ok">' + esc(t('all_good')) + '</span>' : '') + '</div></section>' +
-      (returned.length ? '<a class="notice warn" href="#/work?f=RETURNED" style="color:var(--text);display:block">' + esc(t('n_returned', { n: returned.length })) + ' →</a>' : '') +
-      (approvedAdv.length ? '<a class="notice" href="#/advances" style="color:var(--text);display:block">' + esc(t('n_adv_ready', { n: approvedAdv.length })) + ' →</a>' : '') +
+      todo.map(x => '<a class="notice ' + x[3] + '" href="' + x[0] + '" style="color:var(--text);display:block">' + esc(t(x[1], { n: x[2] })) + ' →</a>').join('') +
       '<div class="actions">' +
       '<a class="action primary" href="#/link">' + icon('pin', 20) + esc(t('act_link')) + '</a>' +
       '<a class="action" href="#/work/new">' + icon('file', 20) + esc(t('act_work')) + '</a>' +
       '<button type="button" class="action" data-act="adv">' + icon('wallet', 20) + esc(t('act_adv')) + '</button>' +
+      '<button type="button" class="action" data-act="pay">' + icon('cash', 20) + esc(t('act_pay')) + '</button>' +
+      '<button type="button" class="action" data-act="exp">' + icon('receipt', 20) + esc(t('act_exp')) + '</button>' +
       '<a class="action" href="#/interim">' + icon('chat', 20) + esc(t('act_report')) + '</a></div>' +
       '<section class="card" style="gap:4px"><div class="card-head"><h2>' + esc(t('todays_workers')) + '</h2><a href="#/workers" class="small">' + esc(t('all_n', { n: ws.length })) + '</a></div><div class="list">' +
       (sorted.map(w => {
@@ -59,13 +71,15 @@
         return '<div class="list-row click" data-act="worker" data-id="' + esc(w.id) + '"><div class="grow"><div class="title">' + esc(w.name) + '</div><div class="meta">' + esc((w.specialty || t('g_' + (w.grade || 'master'))) + (s.code === 'absent' ? ' · ' + t('st_absent') : '')) + '</div></div>' + right + '</div>';
       }).join('') || '<div class="empty">' + esc(t('no_workers_foreman')) + '</div>') + '</div></section>';
 
-    C.bind(view, { adv: () => advanceForm(), worker: (el, ev) => { if (ev.target.closest('a')) return; workerSheet(UB.idx.workers[el.dataset.id]); } });
+    C.bind(view, { adv: () => advanceForm(), pay: () => F.payment(), exp: () => F.expense(), worker: (el, ev) => { if (ev.target.closest('a')) return; workerSheet(UB.idx.workers[el.dataset.id]); } });
   };
 
   // =========================================================== workers
   S.workers = function (view) {
     const ws = myWorkers();
+    const att = UB.data.attempts;
     view.innerHTML = '<div class="page-head"><h1>' + esc(t('nav_workers')) + '</h1><span class="muted small">' + esc(t('n_workers', { n: ws.length })) + '</span></div>' +
+      (att.length ? '<section class="card"><h2>' + esc(t('k_attempts')) + '</h2><div class="list">' + att.slice().reverse().map(a => '<div class="list-row"><div class="grow"><div class="title">' + esc(a.workerId ? UB.workerName(a.workerId) : t('customer')) + '</div><div class="meta">' + esc(UB.h.dt(a.ts) + ' · ' + t('lk_' + a.kind)) + '</div></div><span class="chip bad">' + esc(t('att_' + a.reason)) + '</span></div>').join('') + '</div></section>' : '') +
       '<section class="card" style="gap:4px"><div class="list">' + (ws.map(w => '<div class="list-row click" data-act="w" data-id="' + esc(w.id) + '"><span style="width:40px;height:40px;border-radius:20px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex:none">' + esc(C.initials(w.name)) + '</span><div class="grow"><div class="title">' + esc(w.name) + '</div><div class="meta">' + esc((w.specialty || '') + ' · ' + t('g_' + (w.grade || 'master')) + ' · ' + w.startTime + '–' + w.endTime) + '</div></div>' + UB.statusChip(UB.todayStatus(w.id)) + '</div>').join('') || '<div class="empty">' + esc(t('no_workers_foreman')) + '</div>') + '</div></section>';
     C.bind(view, { w: el => workerSheet(UB.idx.workers[el.dataset.id]) });
   };
@@ -90,7 +104,7 @@
     dlg.querySelector('[data-adv]').addEventListener('click', () => { dlg.close(); advanceForm(w.id); });
   }
 
-  // =========================================================== attendance link
+  // =========================================================== attendance link (yalnız onlayn — token və GPS serverdə yoxlanır)
   S.link = function (view, route) {
     const ws = myWorkers(), sites = mySites();
     const wid = route.q.w || (ws[0] || {}).id || '';
@@ -103,6 +117,7 @@
     }
     const reasons = t('manual_reasons').split(',');
     view.innerHTML = '<div class="page-head"><h1>' + esc(t('act_link')) + '</h1></div>' +
+      (navigator.onLine ? '' : '<div class="notice warn">' + icon('offline', 14) + ' ' + esc(t('online_only')) + '</div>') +
       '<form class="card form" id="lf">' +
       fld(t('worker'), '<select name="workerId" required>' + C.options(ws, wid, 'id', null, '—') + '</select>') +
       fld(t('site'), '<select name="siteId" required>' + C.options(sites, lastSiteOf(wid), 'id') + '</select>') +
@@ -132,7 +147,7 @@
       if (!lf.reportValidity()) return;
       const f = C.formData(lf);
       await C.busy(lf.querySelector('[type=submit]'), async () => {
-        const r = await API.call('createToken', f);
+        const r = await UB.send('createToken', f);
         showLink(view.querySelector('#link-result'), UB.idx.workers[f.workerId], f.kind, r);
       }).catch(() => {});
     });
@@ -142,7 +157,7 @@
       const f = C.formData(lf), m = C.formData(e.target);
       if (!f.workerId || !f.siteId) { lf.reportValidity(); return; }
       const reason = m.reasonSel + (m.note ? ': ' + m.note : '');
-      await C.busy(e.target.querySelector('button'), () => API.call('manualAttendance', { workerId: f.workerId, siteId: f.siteId, kind: f.kind, time: m.time, reason })).then(async () => {
+      await C.busy(e.target.querySelector('button'), () => UB.send('manualAttendance', { workerId: f.workerId, siteId: f.siteId, kind: f.kind, time: m.time, reason })).then(async () => {
         C.toast(t('manual_sent')); await UB.refresh(true); UB.go('#/');
       }).catch(() => {});
     });
@@ -151,9 +166,11 @@
   function showLink(box, w, kind, r) {
     const url = C.linkUrl(r.token);
     const L = w.lang || 'az';
-    const text = t('wa_att', { name: w.name.split(' ')[0], kind: t(kind === 'IN' ? 'kind_in_lc' : 'kind_out_lc', null, L), m: r.ttl, url }, L);
-    const expires = Date.now() + C.n(r.ttl) * 60000;
+    const left0 = Math.max(1, Math.round((Date.parse(r.expires) - Date.parse(UB.data.now || new Date().toISOString())) / 60000));
+    const text = t('wa_att', { name: w.name.split(' ')[0], kind: t(kind === 'IN' ? 'kind_in_lc' : 'kind_out_lc', null, L), m: r.reused ? left0 : r.ttl, url }, L);
+    const expires = r.reused ? Date.now() + left0 * 60000 : Date.now() + C.n(r.ttl) * 60000;
     box.innerHTML = '<section class="card" style="border-color:var(--accent)"><div class="card-head"><b>' + esc(t('link_ready', { name: w.name })) + '</b><span class="chip warn mono" id="cd"></span></div>' +
+      (r.reused ? '<div class="notice">' + esc(t(r.opened ? 'link_reused_opened' : 'link_reused_att')) + '</div>' : '') +
       '<div class="small mono" style="word-break:break-all;color:var(--muted)">' + esc(url) + '</div>' +
       '<button type="button" class="btn primary big block" data-wa>' + icon('chat', 18) + esc(t('send_whatsapp')) + '</button>' +
       '<div class="row"><button type="button" class="btn" data-copy>' + icon('copy', 16) + esc(t('copy')) + '</button><span class="small muted">' + esc(t('link_after_send')) + '</span></div></section>';
@@ -169,6 +186,28 @@
     const timer = setInterval(tick, 1000); tick();
     box.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
+
+  // =========================================================== returned manual attendance
+  S.manual = function (view) {
+    const list = UB.data.attendance.filter(a => a.status === 'RETURNED' || a.status === 'PENDING').sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
+    view.innerHTML = '<div class="page-head"><h1>' + esc(t('manual_entries')) + '</h1></div><section class="card" style="gap:4px"><div class="list">' +
+      (list.map(a => '<div class="list-row"><div class="grow"><div class="title">' + esc(t(a.kind === 'IN' ? 'kind_in' : 'kind_out') + ' · ' + UB.workerName(a.workerId)) + '</div><div class="meta">' + esc(C.fmtDate(a.date) + ' ' + C.fmtTime(a.ts) + ' · ' + a.reason) + '</div>' + (a.returnReason ? '<div class="meta" style="color:var(--bad)">' + esc(t('return_reason')) + ': ' + esc(a.returnReason) + '</div>' : '') + '</div>' +
+        (a.status === 'RETURNED' ? '<button type="button" class="btn sm primary" data-act="fix" data-id="' + esc(a.id) + '">' + esc(t('fix')) + '</button>' : '<span class="chip">' + esc(t('as_PENDING')) + '</span>') + '</div>').join('') || '<div class="empty">' + esc(t('no_data')) + '</div>') + '</div></section>';
+    C.bind(view, {
+      fix: el => {
+        const a = UB.data.attendance.find(x => x.id === el.dataset.id);
+        const dlg = C.dialog({
+          title: t('manual_entry') + ' · ' + UB.workerName(a.workerId),
+          body: '<div class="notice warn">' + esc(t('return_reason')) + ': ' + esc(a.returnReason) + '</div><form class="form" id="ef"><div class="grid2">' + fld(t('time'), '<input name="time" type="time" required value="' + esc(C.fmtTime(a.ts)) + '">') + '</div>' + fld(t('reason'), '<input name="reason" type="text" required value="' + esc(a.reason) + '">') + '</form>',
+          foot: '<button type="button" class="btn" data-close>' + esc(t('cancel')) + '</button><button type="button" class="btn primary" data-save>' + esc(t('send_to_admin')) + '</button>'
+        });
+        dlg.querySelector('[data-save]').addEventListener('click', async e => {
+          const f = dlg.querySelector('#ef'); if (!f.reportValidity()) return;
+          await C.busy(e.currentTarget, () => UB.send('editAttendance', Object.assign({ id: a.id }, C.formData(f)))).then(() => { dlg.close(); C.toast(t('sent_to_admin')); UB.refresh(); }).catch(() => {});
+        });
+      }
+    });
+  };
 
   // =========================================================== work entries
   S.work = function (view, route) {
@@ -186,12 +225,14 @@
   function entrySheet(e) {
     const shares = UB.data.shares.filter(s => s.entryId === e.id);
     const photos = String(e.photos || '').split(' ').filter(Boolean);
+    const wt = UB.idx.workTypes[e.workTypeId] || {};
     const dlg = C.dialog({
       title: UB.wtName(e.workTypeId) + ' · ' + C.num(e.qty) + ' ' + UB.wtUnit(e.workTypeId),
       body: '<div class="row">' + entryChip(e) + '<span class="small muted">' + esc(C.fmtDate(e.date, true) + ' · ' + UB.siteName(e.siteId)) + '</span></div>' +
-        (e.status === 'RETURNED' && e.returnReason ? '<div class="notice warn">' + esc(t('return_reason')) + ': ' + esc(e.returnReason) + '</div>' : '') +
+        (['RETURNED', 'REJECTED'].indexOf(e.status) >= 0 && e.returnReason ? '<div class="notice warn">' + esc(t('return_reason')) + ': ' + esc(e.returnReason) + '</div>' : '') +
         (e.note ? '<div class="small">' + esc(e.note) + '</div>' : '') +
-        '<div class="list">' + shares.map(s => '<div class="list-row"><div class="grow"><div class="title">' + esc(UB.workerName(s.workerId)) + '</div><div class="meta">' + C.num(s.share) + '% · ' + C.num(C.n(e.qty) * C.n(s.share) / 100) + ' ' + esc(UB.wtUnit(e.workTypeId)) + (UB.seesPay() ? ' · ' + C.money(UB.shareAmount(e, s, UB.idx.workers[s.workerId])) : '') + '</div></div>' + (s.confirmedAt ? '<span class="chip ok">✓ ' + esc(C.fmtTime(s.confirmedAt)) + '</span>' : '<span class="chip">' + esc(t('waiting')) + '</span>') + '</div>').join('') + '</div>' +
+        (wt.normType ? '<div class="small muted">' + esc(t('norm')) + ': ' + C.num(wt.normQty) + ' ' + esc(wt.unit) + ' / ' + esc(t('nt_' + wt.normType)) + '</div>' : '') +
+        '<div class="list">' + shares.map(s => '<div class="list-row"><div class="grow"><div class="title">' + esc(UB.workerName(s.workerId)) + '</div><div class="meta">' + C.num(s.share) + '% · ' + C.num(C.n(e.qty) * C.n(s.share) / 100) + ' ' + esc(UB.wtUnit(e.workTypeId)) + '</div></div>' + (s.confirmedAt ? '<span class="chip ok">✓ ' + esc(C.fmtTime(s.confirmedAt)) + '</span>' : '<span class="chip">' + esc(t('waiting')) + '</span>') + '</div>').join('') + '</div>' +
         (photos.length ? '<div class="row">' + photos.map((p, i) => '<a class="btn sm" target="_blank" rel="noopener" href="' + esc(p) + '">' + icon('camera', 14) + esc(t('photo')) + ' ' + (i + 1) + '</a>').join('') + '</div>' : '') +
         '<div id="relinks"></div>',
       foot: (e.status === 'USTA_PENDING' ? '<button type="button" class="btn" data-relink>' + icon('chat', 16) + esc(t('resend_links')) + '</button>' : '') +
@@ -201,7 +242,7 @@
     dlg.querySelectorAll('a[href^="#/"]').forEach(a => a.addEventListener('click', () => dlg.close()));
     const rl = dlg.querySelector('[data-relink]');
     if (rl) rl.addEventListener('click', ev => C.busy(ev.currentTarget, async () => {
-      const links = await API.call('workLinks', { entryId: e.id });
+      const links = await UB.send('workLinks', { entryId: e.id });
       renderWorkLinks(dlg.querySelector('#relinks'), e, links);
     }).catch(() => {}));
   }
@@ -215,7 +256,7 @@
 
   function renderWorkLinks(box, e, links) {
     box.innerHTML = '<section class="card" style="border-color:var(--accent)"><b>' + esc(t('send_confirm_links')) + '</b><div class="list">' +
-      links.map((l, i) => '<div class="list-row"><div class="grow"><div class="title">' + esc(l.name) + '</div><div class="meta">' + C.num(l.share) + '%</div></div><button type="button" class="btn primary sm" data-i="' + i + '">' + icon('chat', 14) + 'WhatsApp</button><button type="button" class="btn sm icon" data-c="' + i + '" aria-label="' + esc(t('copy')) + '">' + icon('copy', 14) + '</button></div>').join('') + '</div></section>';
+      links.map((l, i) => '<div class="list-row"><div class="grow"><div class="title">' + esc(l.name) + '</div><div class="meta">' + C.num(l.share) + '%' + (l.reused ? ' · ' + esc(t('same_link')) : '') + '</div></div><button type="button" class="btn primary sm" data-i="' + i + '">' + icon('chat', 14) + 'WhatsApp</button><button type="button" class="btn sm icon" data-c="' + i + '" aria-label="' + esc(t('copy')) + '">' + icon('copy', 14) + '</button></div>').join('') + '</div></section>';
     box.querySelectorAll('[data-i]').forEach(b => b.addEventListener('click', () => { const l = links[Number(b.dataset.i)]; C.whatsapp(l.phone, workText(e, l)); b.classList.remove('primary'); b.innerHTML = icon('check', 14) + esc(t('sent')); }));
     box.querySelectorAll('[data-c]').forEach(b => b.addEventListener('click', () => C.copyText(workText(e, links[Number(b.dataset.c)]))));
   }
@@ -238,6 +279,7 @@
       fld(t('site'), '<select name="siteId" required>' + C.options(sites, e ? e.siteId : sites[0].id, 'id') + '</select>') +
       fld(t('work_type'), '<select name="workTypeId" required>' + C.options(d.workTypes, e ? e.workTypeId : '', 'id', x => x.name + ' (' + x.unit + ')', '—') + '</select>') +
       fld(t('qty'), '<input name="qty" type="number" min="0.01" step="0.01" required inputmode="decimal" value="' + esc(e ? e.qty : '') + '">', '') + '</div>' +
+      '<div class="small muted" id="norm-hint"></div>' +
       '<fieldset><legend>' + esc(t('who_did')) + '</legend><div id="shares" class="stack" style="gap:8px"></div>' +
       '<div class="row"><button type="button" class="btn sm" data-act="addShare">' + icon('plus', 14) + esc(t('add_worker')) + '</button><button type="button" class="btn sm" data-act="equal">' + esc(t('split_equal')) + '</button><span class="grow"></span><b id="share-sum" class="mono"></b></div></fieldset>' +
       fld(t('note'), '<textarea name="note">' + esc(e ? e.note : '') + '</textarea>') +
@@ -246,7 +288,11 @@
 
     const form = view.querySelector('#wf');
     const box = view.querySelector('#shares');
-    const unitHint = () => { const u = UB.wtUnit(form.workTypeId.value); form.qty.closest('.field').querySelector('span').textContent = t('qty') + (u ? ' (' + u + ')' : ''); };
+    const unitHint = () => {
+      const wt = UB.idx.workTypes[form.workTypeId.value] || {};
+      form.qty.closest('.field').querySelector('span').textContent = t('qty') + (wt.unit ? ' (' + wt.unit + ')' : '');
+      view.querySelector('#norm-hint').textContent = wt.normType ? t('norm') + ': ' + C.num(wt.normQty) + ' ' + wt.unit + ' / ' + t('nt_' + wt.normType) : '';
+    };
     form.workTypeId.addEventListener('change', unitHint); unitHint();
 
     function drawShares() {
@@ -295,7 +341,8 @@
       if (ids.some(x => !x) || new Set(ids).size !== ids.length) return C.toast(t('err_dup_worker'), true);
       const entry = Object.assign({ id: e ? e.id : '' }, C.formData(form));
       await C.busy(form.querySelector('[type=submit]'), async () => {
-        const r = await API.call('saveWorkEntry', { entry, shares, photos });
+        const r = await UB.send('saveWorkEntry', { entry, shares, photos }, t('qa_saveWorkEntry') + ': ' + UB.wtName(entry.workTypeId) + ' ' + entry.qty);
+        if (r && r.queued) { history.replaceState(null, '', '#/work'); view.innerHTML = '<div class="page-head"><h1>' + esc(t('queued_title')) + '</h1><a class="btn" href="#/work">' + esc(t('done')) + '</a></div><div class="notice warn">' + esc(t('queued_work_hint')) + '</div>'; return; }
         await UB.reload();
         history.replaceState(null, '', '#/work');
         view.innerHTML = '<div class="page-head"><h1>' + esc(t('entry_saved')) + '</h1><a class="btn" href="#/work">' + esc(t('done')) + '</a></div><div class="notice">' + esc(t('entry_saved_hint')) + '</div><div id="wl"></div>';
@@ -304,28 +351,34 @@
     });
   }
 
-  // =========================================================== advances
-  function advanceForm(workerId) {
+  // =========================================================== advances (avans axını: Verdim → link → usta təsdiqi)
+  function advanceForm(workerId, existing) {
     const ws = myWorkers();
+    const a = existing || null;
     const dlg = C.dialog({
-      title: t('act_adv'),
-      body: '<form class="form" id="af">' + fld(t('worker'), '<select name="workerId" required>' + C.options(ws, workerId || '', 'id', null, '—') + '</select>') +
-        fld(t('amount') + ' (₼)', '<input name="amount" type="number" min="1" step="0.01" required inputmode="decimal">') +
-        fld(t('reason'), '<input name="reason" type="text">') + '<div class="small muted" id="adv-info"></div></form>',
+      title: a ? t('fix_advance') : t('act_adv'),
+      body: (a && a.returnReason ? '<div class="notice warn">' + esc(t('return_reason')) + ': ' + esc(a.returnReason) + '</div>' : '') +
+        (a && a.confirmedAmount ? '<div class="notice">' + esc(t('conflict_amounts', { a: C.money(a.amount), b: C.money(a.confirmedAmount) })) + '</div>' : '') +
+        '<form class="form" id="af">' + fld(t('worker'), '<select name="workerId" required' + (a ? ' disabled' : '') + '>' + C.options(ws, a ? a.workerId : workerId || '', 'id', null, '—') + '</select>') +
+        fld(t('amount') + ' (₼)', '<input name="amount" type="number" min="1" step="0.01" required inputmode="decimal" value="' + esc(a ? a.amount : '') + '">') +
+        fld(t('reason'), '<input name="reason" type="text" value="' + esc(a ? a.reason : '') + '">') + '<div class="small muted" id="adv-info"></div>' +
+        '<div class="notice small">' + esc(t('adv_flow_hint')) + '</div></form>',
       foot: '<button type="button" class="btn" data-close>' + esc(t('cancel')) + '</button><button type="button" class="btn primary" data-save>' + esc(t('send_to_admin')) + '</button>'
     });
     const form = dlg.querySelector('#af');
     const info = () => {
       const w = UB.idx.workers[form.workerId.value]; const el = dlg.querySelector('#adv-info');
       if (!w) { el.textContent = ''; return; }
-      const used = UB.data.advances.filter(a => a.workerId === w.id && String(a.created).slice(0, 7) === UB.data.month && ['PENDING', 'APPROVED', 'GIVEN', 'SIGNED'].indexOf(a.status) >= 0).reduce((s, a) => s + C.n(a.amount), 0);
+      const used = UB.data.advances.filter(x => x.workerId === w.id && (!a || x.id !== a.id) && String(x.created).slice(0, 7) === UB.data.month && ['REJECTED'].indexOf(x.status) < 0).reduce((s, x) => s + C.n(x.amount), 0);
       el.textContent = t('adv_used_month', { v: C.money(used) });
     };
     form.workerId.addEventListener('change', info); info();
     dlg.querySelector('[data-save]').addEventListener('click', async e => {
       if (!form.reportValidity()) return;
-      await C.busy(e.currentTarget, () => API.call('requestAdvance', C.formData(form))).then(r => {
+      const f = C.formData(form); if (a) { f.id = a.id; f.workerId = a.workerId; }
+      await C.busy(e.currentTarget, () => UB.send('requestAdvance', f, t('qa_requestAdvance') + ': ' + UB.workerName(f.workerId) + ' ' + C.money(f.amount))).then(r => {
         dlg.close();
+        if (r && r.queued) return;
         C.toast(r.overLimit === 'yes' ? t('adv_sent_over', { l: C.money(r.limit) }) : t('adv_sent'));
         UB.refresh();
       }).catch(() => {});
@@ -333,21 +386,48 @@
   }
   UB.advanceForm = advanceForm;
 
-  S.advances = function (view) {
+  S.advances = function (view, route) {
     const d = UB.data;
-    const list = d.advances.slice().sort((a, b) => String(b.created).localeCompare(String(a.created)));
-    const chip = a => '<span class="chip ' + ({ PENDING: '', APPROVED: 'accent', GIVEN: 'warn', SIGNED: 'ok', REJECTED: 'bad' }[a.status] || '') + '">' + esc(t('adv_' + a.status)) + '</span>';
+    const f = route.q.f || '';
+    let list = d.advances.slice().sort((a, b) => String(b.created).localeCompare(String(a.created)));
+    if (f === 'open') list = list.filter(a => ['CLOSED', 'SIGNED', 'REJECTED'].indexOf(a.status) < 0);
     view.innerHTML = '<div class="page-head"><h1>' + esc(t('nav_advances')) + '</h1><div class="row"><a class="btn" href="#/print/advances/' + d.month + '">' + icon('print', 16) + esc(t('print_adv')) + '</a><button type="button" class="btn primary" data-act="new">' + icon('plus', 16) + esc(t('new_request')) + '</button></div></div>' +
-      '<section class="card" style="gap:4px"><div class="list">' + (list.map(a => '<div class="list-row"><div class="grow"><div class="title">' + C.money(a.amount) + ' · ' + esc(UB.workerName(a.workerId)) + '</div><div class="meta">' + esc(C.fmtDate(a.created) + (a.receiptNo ? ' · ' + a.receiptNo : '') + (a.reason ? ' · ' + a.reason : '') + (a.rejectReason ? ' · ' + a.rejectReason : '')) + '</div>' +
-        (a.status === 'APPROVED' ? '<div class="row" style="margin-top:8px;gap:6px"><button type="button" class="btn primary sm" data-act="wa" data-id="' + esc(a.id) + '">' + icon('chat', 14) + esc(t('send_receipt')) + '</button><button type="button" class="btn sm" data-act="given" data-id="' + esc(a.id) + '">' + esc(t('mark_given')) + '</button></div>' : '') +
-        (a.status === 'GIVEN' ? '<div class="row" style="margin-top:8px;gap:6px"><button type="button" class="btn sm" data-act="wa" data-id="' + esc(a.id) + '">' + icon('chat', 14) + esc(t('send_receipt')) + '</button><a class="btn sm" href="#/print/receipt/' + esc(a.id) + '">' + icon('print', 14) + esc(t('print')) + '</a><button type="button" class="btn sm" data-act="signed" data-id="' + esc(a.id) + '">' + esc(t('mark_signed')) + '</button></div>' : '') +
-        '</div>' + chip(a) + '</div>').join('') || '<div class="empty">' + esc(t('no_advances')) + '</div>') + '</div></section>';
-    C.bind(view, {
-      new: () => advanceForm(),
-      wa: el => { const a = d.advances.find(x => x.id === el.dataset.id); const w = UB.idx.workers[a.workerId] || {}; C.whatsapp(w.phone, UB.receiptText(a)); },
-      given: el => C.busy(el, () => API.call('markAdvance', { id: el.dataset.id, status: 'GIVEN' })).then(() => UB.refresh()).catch(() => {}),
-      signed: el => C.busy(el, () => API.call('markAdvance', { id: el.dataset.id, status: 'SIGNED' })).then(() => UB.refresh()).catch(() => {})
-    });
+      '<div class="tabs" role="tablist"><button role="tab" data-act="f" data-f="" aria-selected="' + (!f) + '">' + esc(t('all')) + '</button><button role="tab" data-act="f" data-f="open" aria-selected="' + (f === 'open') + '">' + esc(t('open_items')) + '</button></div>' +
+      '<div class="notice small">' + esc(t('adv_flow_hint')) + '</div>' +
+      '<section class="card" style="gap:4px"><div class="list">' + (list.map(a => '<div class="list-row"><div class="grow"><div class="title">' + C.money(a.amount) + ' · ' + esc(UB.workerName(a.workerId)) + '</div><div class="meta">' + esc(C.fmtDate(a.created) + (a.receiptNo ? ' · ' + a.receiptNo : '') + (a.reason ? ' · ' + a.reason : '')) + '</div>' +
+        (a.status === 'RETURNED' && a.returnReason ? '<div class="meta" style="color:var(--bad)">' + esc(t('return_reason')) + ': ' + esc(a.returnReason) + '</div>' : '') +
+        (a.status === 'REJECTED' && a.rejectReason ? '<div class="meta" style="color:var(--bad)">' + esc(a.rejectReason) + '</div>' : '') +
+        (a.status === 'CONFLICT' ? '<div class="meta" style="color:var(--bad)">' + esc(t('conflict_amounts', { a: C.money(a.amount), b: C.money(a.confirmedAmount) })) + ' · ' + esc(t('conflict_admin')) + '</div>' : '') +
+        UB.moneyActions('ADV', a) + '</div>' + UB.moneyChip(a.status) + '</div>').join('') || '<div class="empty">' + esc(t('no_advances')) + '</div>') + '</div></section>';
+    UB.bindMoney(view);
+    C.bind(view, { new: () => advanceForm(), f: el => UB.go('#/advances' + (el.dataset.f ? '?f=' + el.dataset.f : '')) });
+  };
+
+  // =========================================================== customer payments (P-07)
+  S.payments = function (view) {
+    const d = UB.data;
+    const list = d.payments.slice().sort((a, b) => String(b.date + b.created).localeCompare(String(a.date + a.created)));
+    view.innerHTML = '<div class="page-head"><h1>' + esc(t('nav_payments')) + '</h1><button type="button" class="btn primary" data-act="new">' + icon('plus', 16) + esc(t('new_payment')) + '</button></div>' +
+      '<div class="notice small">' + esc(t('payment_flow_hint')) + '</div>' +
+      '<section class="card" style="gap:4px"><div class="list">' + (list.map(p => '<div class="list-row"><div class="grow"><div class="title">' + C.money(p.amount) + ' · ' + esc(UB.customerOfSite(p.siteId).name || '') + '</div><div class="meta">' + esc(C.fmtDate(p.date) + ' · ' + UB.siteName(p.siteId) + ' · ' + t('pm_' + (p.method || 'CASH')) + (p.receiptNo ? ' · ' + p.receiptNo : '')) + '</div>' +
+        (p.status === 'RETURNED' && p.returnReason ? '<div class="meta" style="color:var(--bad)">' + esc(t('return_reason')) + ': ' + esc(p.returnReason) + '</div>' : '') +
+        (p.status === 'CONFLICT' ? '<div class="meta" style="color:var(--bad)">' + esc(t('conflict_amounts', { a: C.money(p.amount), b: C.money(p.confirmedAmount) })) + ' · ' + esc(t('conflict_admin')) + '</div>' : '') +
+        UB.moneyActions('PAY', p) + '</div>' + UB.moneyChip(p.status) + '</div>').join('') || '<div class="empty">' + esc(t('no_payments')) + '</div>') + '</div></section>';
+    UB.bindMoney(view);
+    C.bind(view, { new: () => F.payment() });
+  };
+
+  // =========================================================== expenses (P-08)
+  S.expenses = function (view) {
+    const d = UB.data;
+    const list = d.expenses.slice().sort((a, b) => String(b.date + b.created).localeCompare(String(a.date + a.created)));
+    const XCHIP = { APPROVED: 'ok', PENDING: '', RETURNED: 'bad', REJECTED: 'bad' };
+    view.innerHTML = '<div class="page-head"><h1>' + esc(t('nav_expenses')) + '</h1><button type="button" class="btn primary" data-act="new">' + icon('plus', 16) + esc(t('new_expense')) + '</button></div>' +
+      '<section class="card" style="gap:4px"><div class="list">' + (list.map(x => '<div class="list-row"><div class="grow"><div class="title">' + C.money(x.amount) + ' · ' + esc(x.category) + '</div><div class="meta">' + esc(C.fmtDate(x.date) + ' · ' + UB.siteName(x.siteId) + (x.note ? ' · ' + x.note : '')) + '</div>' +
+        (x.returnReason && x.status !== 'APPROVED' ? '<div class="meta" style="color:var(--bad)">' + esc(t('return_reason')) + ': ' + esc(x.returnReason) + '</div>' : '') +
+        (x.status === 'RETURNED' ? '<div class="row" style="margin-top:8px"><button type="button" class="btn sm primary" data-act="fix" data-id="' + esc(x.id) + '">' + icon('edit', 14) + esc(t('fix')) + '</button></div>' : '') +
+        '</div><span class="chip ' + (XCHIP[x.status] || '') + '">' + esc(t('xs_' + x.status)) + '</span></div>').join('') || '<div class="empty">' + esc(t('no_expenses')) + '</div>') + '</div></section>';
+    C.bind(view, { new: () => F.expense(), fix: el => F.expense(d.expenses.find(x => x.id === el.dataset.id)) });
   };
 
   // =========================================================== interim report
@@ -364,7 +444,7 @@
       e.preventDefault(); if (!form.reportValidity()) return;
       const f = C.formData(form);
       await C.busy(form.querySelector('button'), async () => {
-        const r = await API.call('interim', { workerId: f.workerId, planDays: f.planDays, month: d.month });
+        const r = await UB.send('interim', { workerId: f.workerId, planDays: f.planDays, month: d.month });
         renderInterim(view.querySelector('#ir'), r);
       }).catch(() => {});
     });
@@ -374,10 +454,13 @@
   function interimText(r) {
     const L = r.worker.lang || 'az', l = r.line || {};
     const tt = (k, v) => t(k, v, L);
-    const lines = ['Ustabaşı · ' + tt('interim_title') + ' · ' + C.monthName(r.month).replace(/^\S+/, m => tt('months').split(',')[Number(r.month.slice(5, 7)) - 1] || m), tt('as_of') + ': ' + r.asOf, tt('worker') + ': ' + r.worker.name, tt('days_worked') + ': ' + (l.daysWorked || 0) + (r.worker.payType === 'MONTH' && l.planDays ? ' / ' + l.planDays : '')];
+    const lines = ['Ustabaşı · ' + tt('interim_title') + ' · ' + (tt('months').split(',')[Number(r.month.slice(5, 7)) - 1] || '') + ' ' + r.month.slice(0, 4), tt('as_of') + ': ' + r.asOf, tt('worker') + ': ' + r.worker.name, tt('days_worked') + ': ' + (l.daysWorked || 0) + (r.worker.payType === 'MONTH' && l.planDays ? ' / ' + l.planDays : '')];
     if (l.total !== undefined) {
       if (r.worker.payModel !== 'BONUS') lines.push(tt('col_std') + ': ' + C.money(l.S));
-      if (r.worker.payModel !== 'STD') lines.push(tt('bonus_approved') + ': ' + C.money(l.bonus));
+      if (r.worker.payModel !== 'STD') {
+        lines.push(tt('bonus_approved') + ': ' + C.money(l.bonus));
+        (l.detail || []).filter(x => x.amount).forEach(x => lines.push('  · ' + x.name + ': ' + C.num(x.fakt) + ' / ' + C.num(x.norm) + ' ' + x.unit + ' (+' + C.num(x.pct) + '%)'));
+      }
       if (C.n(l.pendingBonus)) lines.push(tt('bonus_pending') + ': ' + C.money(l.pendingBonus) + ' (' + tt('not_in_total') + ')');
       if (C.n(l.advance)) lines.push(tt('col_adv') + ': −' + C.money(l.advance));
       if (C.n(l.penalty)) lines.push(tt('col_pen') + ': −' + C.money(l.penalty));
@@ -397,23 +480,19 @@
     box.querySelector('[data-copy]').addEventListener('click', () => C.copyText(text));
   }
 
-  // =========================================================== sites
+  // =========================================================== sites (yaradanda şəkil məcburidir)
   S.sites = function (view) {
     const d = UB.data;
-    const stChip = s => '<span class="chip ' + ({ APPROVED: 'ok', PENDING: 'warn', REJECTED: 'bad' }[s.status] || '') + '">' + esc(t('site_' + s.status)) + '</span>';
+    const list = d.sites.slice().sort((a, b) => (a.status === 'RETURNED' ? -1 : b.status === 'RETURNED' ? 1 : a.name.localeCompare(b.name)));
     view.innerHTML = '<div class="page-head"><h1>' + esc(t('nav_sites_short')) + '</h1><button type="button" class="btn primary" data-act="add">' + icon('plus', 16) + esc(t('new_site')) + '</button></div>' +
-      '<section class="card" style="gap:4px"><div class="list">' + (d.sites.map(s => '<div class="list-row click" data-act="s" data-id="' + esc(s.id) + '"><div class="grow"><div class="title">' + esc(s.name) + '</div><div class="meta">' + esc(((UB.idx.customers[s.customerId] || {}).name || '') + ' · ' + (s.address || '') + ' · ' + t('radius_m', { m: s.radius })) + '</div></div>' + stChip(s) + '</div>').join('') || '<div class="empty">' + esc(t('no_sites')) + '</div>') + '</div></section>';
+      '<section class="card" style="gap:4px"><div class="list">' + (list.map(s => '<div class="list-row click" data-act="s" data-id="' + esc(s.id) + '"><div class="grow"><div class="title">' + esc(s.name) + '</div><div class="meta">' + esc(((UB.idx.customers[s.customerId] || {}).name || '') + ' · ' + (s.address || '') + ' · ' + t('radius_m', { m: s.radius })) + '</div>' +
+        (s.status === 'RETURNED' || s.status === 'REJECTED' ? '<div class="meta" style="color:var(--bad)">' + esc(t('return_reason')) + ': ' + esc(s.returnReason || '') + '</div>' : '') + '</div>' + UB.siteChip(s) + '</div>').join('') || '<div class="empty">' + esc(t('no_sites')) + '</div>') + '</div></section>';
     C.bind(view, {
       add: () => F.site(),
       s: el => {
         const s = UB.idx.sites[el.dataset.id];
-        const dlg = C.dialog({
-          title: s.name,
-          body: '<div class="kv"><span>' + esc(t('customer')) + '</span><span>' + esc((UB.idx.customers[s.customerId] || {}).name || '—') + '</span><span>' + esc(t('address')) + '</span><span>' + esc(s.address || '—') + '</span><span>' + esc(t('coords')) + '</span><span><a target="_blank" rel="noopener" href="https://www.google.com/maps?q=' + esc(s.lat) + ',' + esc(s.lng) + '">' + esc(t('check_on_map')) + '</a> · ' + esc(t('radius_m', { m: s.radius })) + '</span><span>' + esc(t('status')) + '</span><span>' + stChip(s) + '</span></div>' +
-            (s.status === 'APPROVED' ? '<div class="notice">' + esc(t('site_coords_change')) + '</div>' : ''),
-          foot: '<button type="button" class="btn" data-close>' + esc(t('close')) + '</button><button type="button" class="btn primary" data-edit>' + icon('edit', 16) + esc(t('edit')) + '</button>'
-        });
-        dlg.querySelector('[data-edit]').addEventListener('click', () => { dlg.close(); F.site(s); });
+        if (s.status === 'RETURNED') return F.site(s);
+        F.siteDetail(s);
       }
     });
   };

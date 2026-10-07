@@ -1,7 +1,7 @@
 {
   "name": "Ustabaşı",
   "short_name": "Ustabaşı",
-  "description": "Təmir ustalarının, prarabların və obyektlərin idarəetməsi",
+  "description": "Təmir ustalarının, sahə rəislərinin və obyektlərin idarəetməsi",
   "lang": "az",
   "start_url": "./index.html",
   "scope": "./",
