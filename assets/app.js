@@ -3,7 +3,7 @@
   'use strict';
   const C = window.UBCore;
   const { t, esc, icon, logo, API, LS } = C;
-  const VERSION = '0.3.1';
+  const VERSION = '0.3.2';
   const SNAP = 'ub_snap';
   const SNAP_MAX_MS = 24 * 3600 * 1000;   // 1 gün giriş olmasa telefondakı data silinir (K-15, K-17)
   // Offline-da yalnız bunlar növbəyə düşür (S-45). Server yoxlaması tələb edənlər yalnız onlayn.
