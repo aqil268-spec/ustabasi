@@ -1,7 +1,7 @@
 /*
  * Master — HTTP server (Node.js + PostgreSQL).
  * Same API as the Apps Script web app: POST JSON body → JSON answer.
- * Env: DATABASE_URL (required), PORT, PUBLIC_URL, ADMIN_NAME, ADMIN_PHONE, ADMIN_PASSWORD, ADMIN_EMAIL, CORS_ORIGIN.
+ * Env: DATABASE_URL (required), PORT, PUBLIC_URL, ADMIN_NAME, ADMIN_PHONE, ADMIN_PASSWORD, ADMIN_RESET, ADMIN_EMAIL, CORS_ORIGIN.
  */
 'use strict';
 process.env.TZ = process.env.TZ || 'Asia/Baku';
@@ -148,9 +148,25 @@ async function main() {
   } else {
     await runAndSave(() => {});   // creates SQL views
   }
+  await adminReset();
   ready = true;
   server.listen(PORT, () => console.log('Master server v' + rt.api.VERSION + ' on :' + PORT + ' (' + PUBLIC_URL + ')'));
   setInterval(() => { tick().catch(e => console.error('tick', e)); }, 60000).unref();
+}
+
+/**
+ * Admin password reset (replaces "Run setAdminLogin" in the Apps Script editor).
+ * Set ADMIN_PASSWORD (new temporary password) and ADMIN_RESET (any new word) in the
+ * Render environment, then deploy. The reset runs one time for each new ADMIN_RESET value.
+ */
+async function adminReset() {
+  const word = String(process.env.ADMIN_RESET || '').trim();
+  if (!word) return;
+  const mark = require('crypto').createHash('sha256').update(word + '|' + (process.env.ADMIN_PHONE || '') + '|' + (process.env.ADMIN_PASSWORD || '')).digest('hex');
+  if (await store.metaGet(pool, 'adminReset') === mark) return;
+  await runAndSave(() => rt.api.setAdminLogin());
+  await store.metaSet(pool, 'adminReset', mark);
+  console.log('Admin reset: done (see the line above for the result)');
 }
 
 function stop() {

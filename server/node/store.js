@@ -15,6 +15,7 @@ create table if not exists gas_files  (id text primary key, folder text not null
 create index if not exists gas_files_folder on gas_files (folder);
 create table if not exists gas_triggers (handler text primary key);
 create table if not exists gas_jobs   (name text primary key, last_run timestamptz not null);
+create table if not exists gas_meta   (k text primary key, v text not null);
 create schema if not exists app;
 `;
 
@@ -171,4 +172,12 @@ async function jobDone(pool, name) {
   await pool.q('insert into gas_jobs (name, last_run) values ($1, now()) on conflict (name) do update set last_run = excluded.last_run', [name]);
 }
 
-module.exports = { makePool, init, loadAll, persist, refreshViews, getFile, jobLastRun, jobDone };
+async function metaGet(pool, k) {
+  const r = await pool.q('select v from gas_meta where k = $1', [k]);
+  return r[0] ? r[0].v : null;
+}
+async function metaSet(pool, k, v) {
+  await pool.q('insert into gas_meta (k, v) values ($1, $2) on conflict (k) do update set v = excluded.v', [k, v]);
+}
+
+module.exports = { metaGet, metaSet, makePool, init, loadAll, persist, refreshViews, getFile, jobLastRun, jobDone };

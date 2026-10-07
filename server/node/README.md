@@ -16,7 +16,21 @@ Bu qovluq `server/Code.gs`-i Google-dan kənarda işə salır. Biznes məntiqi d
 | `DATABASE_URL` | PostgreSQL ünvanı (məcburi) |
 | `ADMIN_PHONE`, `ADMIN_PASSWORD`, `ADMIN_NAME` | İlk admin (yalnız ilk başlanğıcda istifadə olunur) |
 | `PUBLIC_URL` | Serverin ünvanı. Render-də avtomatik təyin olunur (`RENDER_EXTERNAL_URL`) |
+| `ADMIN_RESET` | Admin şifrəsini sıfırlamaq üçün istənilən söz (aşağıya bax) |
 | `ADMIN_EMAIL` | İstəyə görə |
+
+## Admin şifrəsini sıfırlamaq
+
+Apps Script-dəki `setAdminLogin` əvəzinə:
+
+1. Render → `master-server` → **Environment**.
+2. `ADMIN_PASSWORD` — yeni müvəqqəti şifrə (8+ simvol, böyük və kiçik hərf, rəqəm, işarə).
+3. `ADMIN_RESET` — **yeni** istənilən söz (məs. `reset-1`, növbəti dəfə `reset-2`).
+4. `ADMIN_PHONE` və `ADMIN_NAME` — admin telefonu və adı (yazılmasa: `994500000000`, `Admin`).
+5. **Save, rebuild and deploy**.
+
+Server başlayanda admin girişini bir dəfə yazır, bütün admin sessiyalarını bağlayır. İlk girişdə yeni şifrə tələb olunur.
+Eyni söz ilə təkrar deploy sıfırlamanı təkrarlamır.
 
 ## Lokal işə salmaq
 
