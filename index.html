@@ -13,17 +13,20 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="assets/app.css?v=0.3.5">
+<link rel="stylesheet" href="assets/app.css?v=0.3.6">
 </head>
 <body>
-<div id="app"><div class="loading" style="min-height:100vh"><i></i></div></div>
+<div id="app"></div>
+<div id="splash" aria-hidden="true"><script>window.__splashAt = Date.now();</script>
+<svg viewBox="0 0 64 64" width="104" height="104"><ellipse class="lg-ring" cx="32" cy="59" rx="9" ry="3" fill="none" stroke="#FF7A1A" stroke-width="1.6"/><g class="lg-pin"><path d="M32 4C20.4 4 11 13.2 11 24.6 11 39 32 58 32 58S53 39 53 24.6C53 13.2 43.6 4 32 4Z" fill="#FF7A1A"/><path class="lg-roof" d="M21 26L32 16L43 26" fill="none" stroke="#16191D" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/><path class="lg-check" d="M24.5 31.5L30 37L40 27" fill="none" stroke="#16191D" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g></svg>
+<div class="sp-name">Master</div><div class="sp-bar"><i></i></div></div>
 <noscript>Master üçün JavaScript lazımdır.</noscript>
 <script src="config.js"></script>
-<script src="assets/i18n.js?v=0.3.5"></script>
-<script src="assets/core.js?v=0.3.5"></script>
-<script src="assets/app.js?v=0.3.5"></script>
-<script src="assets/admin.js?v=0.3.5"></script>
-<script src="assets/foreman.js?v=0.3.5"></script>
-<script>window.UB.boot();</script>
+<script src="assets/i18n.js?v=0.3.6"></script>
+<script src="assets/core.js?v=0.3.6"></script>
+<script src="assets/app.js?v=0.3.6"></script>
+<script src="assets/admin.js?v=0.3.6"></script>
+<script src="assets/foreman.js?v=0.3.6"></script>
+<script>window.UB.boot().finally(function () { window.UBCore && UBCore.hideSplash(); });</script>
 </body>
 </html>

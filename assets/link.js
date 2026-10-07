@@ -96,6 +96,12 @@
 
   function fmtDist(m) { m = C.n(m); return m >= 1000 ? (Math.round(m / 100) / 10).toString().replace('.', ',') + ' km' : Math.round(m) + ' m'; }
 
+  /** Təsdiq göndərilərkən ekran bağlanır (yükləmə animasiyası), heç nə dəyişdirilə bilməz. */
+  async function confirmCall(params) {
+    C.blocker.show(t('u_sending'));
+    try { return await call('tokenConfirm', params); } finally { C.blocker.hide(); }
+  }
+
   function handleErr(err, btn, label) {
     const map = { link_used: 'used', link_expired: 'expired', link_cancelled: 'cancelled' };
     // Cavab itəndə (zəif internet) usta yenidən basır: link artıq istifadə olunub — nəticəni serverdən götürürük.
@@ -115,7 +121,7 @@
     try {
       const pos = await C.getPosition();
       btn.innerHTML = '<i class="spin"></i>' + esc(t('u_sending'));
-      const r = await call('tokenConfirm', pos);
+      const r = await confirmCall(pos);
       if (r && r.ok === false && r.error === 'too_far') { renderAttendance(r); return; }
       clearInterval(timer);
       const late = info.kind === 'IN' && C.n(r.diffMin) > C.n(r.late || 15) ? '<div class="chip warn">' + esc(t('st_late', { m: C.n(r.diffMin) })) + '</div>' : '';
@@ -149,7 +155,7 @@
   async function sendWork(btn, reject, reason) {
     btn.disabled = true;
     try {
-      await call('tokenConfirm', { reject: !!reject, reason: reason || '' });
+      await confirmCall({ reject: !!reject, reason: reason || '' });
       clearInterval(timer);
       if (reject) return stateMsg(t('u_work_rejected'), t('u_work_rejected_text', { name: info.foreman }));
       success(t('u_work_done'), '<div class="muted" style="font-size:15px;line-height:1.5">' + esc(info.work.type) + ' · ' + C.num(info.work.myQty) + ' ' + esc(info.work.unit) + '<br>' + esc(t('u_work_next')) + '</div>');
@@ -180,7 +186,7 @@
       const btn = document.getElementById('go');
       btn.disabled = true; btn.innerHTML = '<i class="spin"></i>' + esc(t('u_sending'));
       try {
-        const r = await call('tokenConfirm', { amount });
+        const r = await confirmCall({ amount });
         clearInterval(timer);
         moneyDone(r.match, r.receipt);
       } catch (err) { handleErr(err, btn, t('u_money_send')); }

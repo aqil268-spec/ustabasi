@@ -3,7 +3,7 @@
   'use strict';
   const C = window.UBCore;
   const { t, esc, icon, logo, API, LS } = C;
-  const VERSION = '0.3.5';
+  const VERSION = '0.3.6';
   const SNAP = 'ub_snap';
   const SNAP_MAX_MS = 24 * 3600 * 1000;   // 1 gün giriş olmasa telefondakı data silinir (K-15, K-17)
   // Offline-da yalnız bunlar növbəyə düşür (S-45). Server yoxlaması tələb edənlər yalnız onlayn.
@@ -175,7 +175,9 @@
   UB.sync = sync;
 
   UB.refresh = async function (silent) {
-    try { await load(); render(); }
+    const startHash = location.hash;
+    // İstifadəçi bu vaxt başqa formaya keçibsə, ekran yenidən çəkilmir: yazdığı xanalar silinməsin.
+    try { await load(); if (location.hash === startHash || canRerender()) render(); }
     catch (e) {
       if (e.code === 'auth') return logout(true);
       if (e.code === 'must_change') return renderPassword(true);
@@ -335,6 +337,7 @@
   UB.langSeg = langSeg;
   UB.langOptions = () => C.LANGS.map(x => [x, C.LANG_NAMES[x]]);
 
+  let lastRouteKey = null;
   function render() {
     const root = document.getElementById('app');
     if (!UB.data) return;
@@ -348,6 +351,8 @@
     document.documentElement.classList.remove('printing');
     root.innerHTML = shell(route);
     const view = document.getElementById('view');
+    // Ekran keçid animasiyası yalnız başqa ekrana keçəndə (data yenilənəndə yox)
+    if (location.hash !== lastRouteKey) { lastRouteKey = location.hash; view.classList.add('enter'); setTimeout(() => view.classList.remove('enter'), 400); }
     const set = UB.isAdmin() ? UB.screens.admin : UB.screens.foreman;
     const fn = set[route.name] || UB.screens.common[route.name] || set.home;
     try { fn(view, route); }
@@ -679,7 +684,7 @@
       return;
     }
     if (!navigator.onLine) { renderLogin(t('err_network')); return; }
-    root.innerHTML = '<div class="loading" style="min-height:100vh"><i></i>' + esc(t('loading')) + '</div>';
+    root.innerHTML = '<div class="loading big" style="min-height:100vh">' + C.loader(72) + esc(t('loading')) + '</div>';
     try { await load(); render(); await loadQueue(); if (UB.queue.length) flushQueue(); }
     catch (e) {
       if (e.code === 'auth') { LS.set('ub_token', null); clearSnap(); return renderLogin(); }

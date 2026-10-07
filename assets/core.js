@@ -218,13 +218,67 @@
     });
   }
 
-  async function busy(btn, fn) {
+  /** Animasiyalı loqo (yükləmə): sancaq hoppanır, dam və işarə çəkilir, halqa yayılır. */
+  function loader(size) {
+    const z = size || 64;
+    return '<svg class="ld" viewBox="0 0 64 64" width="' + z + '" height="' + z + '" aria-hidden="true">' +
+      '<ellipse class="ld-ring" cx="32" cy="59" rx="9" ry="3" fill="none" stroke="#FF7A1A" stroke-width="1.6"/>' +
+      '<ellipse class="ld-shadow" cx="32" cy="60" rx="8" ry="2.2" fill="#000" opacity=".35"/>' +
+      '<g class="ld-pin"><path d="M32 4C20.4 4 11 13.2 11 24.6 11 39 32 58 32 58S53 39 53 24.6C53 13.2 43.6 4 32 4Z" fill="#FF7A1A"/>' +
+      '<path class="ld-roof" d="M21 26L32 16L43 26" fill="none" stroke="#16191D" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<path class="ld-check" d="M24.5 31.5L30 37L40 27" fill="none" stroke="#16191D" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g></svg>';
+  }
+
+  /**
+   * Ekranı bağlayan yükləmə pəncərəsi: "Yadda saxla" və s. basılanda xanalar redaktə olunmasın.
+   * Ayrıca <dialog> (showModal) — açıq formaların da üstündə olur. Esc ilə bağlanmır.
+   */
+  const blocker = (() => {
+    let n = 0, el = null;
+    function show(label) {
+      n++;
+      if (el) { if (label) el.querySelector('.blk-t').textContent = label; return; }
+      el = document.createElement('dialog');
+      el.className = 'blocker';
+      el.setAttribute('aria-busy', 'true');
+      el.innerHTML = '<div class="blk-box" role="status">' + loader(64) + '<div class="blk-t"></div></div>';
+      el.querySelector('.blk-t').textContent = label || t('please_wait');
+      el.addEventListener('cancel', e => e.preventDefault());
+      document.body.appendChild(el);
+      try { el.showModal(); } catch (e) { el.setAttribute('open', ''); }
+    }
+    function hide() {
+      n = Math.max(0, n - 1);
+      if (n || !el) return;
+      const d = el; el = null;
+      // Dərhal bağlanır: açıq modal səhifəni "inert" edir, gecikmə olsa yeni formaya yazmaq olmur.
+      try { d.close(); } catch (e) { /* ignore */ }
+      d.remove();
+    }
+    return { show, hide };
+  })();
+
+  async function busy(btn, fn, label) {
     if (btn && btn.disabled) return;
     const html = btn ? btn.innerHTML : '';
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="spin"></i>' + esc(btn.textContent.trim()); }
+    blocker.show(label);
     try { return await fn(); }
     catch (e) { toast(errorText(e), true); throw e; }
-    finally { if (btn && btn.isConnected) { btn.disabled = false; btn.innerHTML = html; } }
+    finally {
+      blocker.hide();
+      if (btn && btn.isConnected) { btn.disabled = false; btn.innerHTML = html; }
+    }
+  }
+
+  /** Açılış ekranı (index.html #splash): ən azı 1,4 san görünür, sonra yox olur. */
+  function hideSplash() {
+    const el = document.getElementById('splash');
+    if (!el || el.dataset.out) return;
+    el.dataset.out = '1';
+    const t0 = window.__splashAt || 0;
+    const wait = Math.max(0, 1400 - (Date.now() - t0));
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 420); }, wait);
   }
 
   function formData(form) {
@@ -529,7 +583,7 @@
   window.UBCore = {
     CFG, LS, API, err, t, setLang, getLang, errorText,
     esc, n, round2, num, money, pad, todayISO, monthISO, shiftMonth, fmtDate, fmtTime, monthName, weekday, initials, shortName,
-    icon, logo, toast, dialog, confirmDlg, promptDlg, busy, formData, bind, options,
+    icon, logo, toast, dialog, confirmDlg, promptDlg, busy, blocker, loader, hideSplash, formData, bind, options,
     appBase, linkUrl, b64url, fromB64url, waPhone, whatsapp, copyText, getPosition, compressImage, downloadCsv,
     LANGS, LANG_NAMES, deviceId, amountWords, receiptPdf, receiptCanvas, pdfFromCanvas, sharePdf, blobToDataUrl, Q, nowLocalIso, rid
   };
