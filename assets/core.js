@@ -177,7 +177,7 @@
 
   function dialog(opts) {
     const d = document.createElement('dialog');
-    d.className = 'dlg';
+    d.className = 'dlg' + (opts.small ? ' dlg-sm' : '');
     d.innerHTML = '<div class="dlg-head"><h2>' + esc(opts.title || '') + '</h2><button type="button" class="btn icon ghost" data-close aria-label="' + esc(t('close')) + '">' + icon('x') + '</button></div>' +
       '<div class="dlg-body">' + (opts.body || '') + '</div>' + (opts.foot ? '<div class="dlg-foot">' + opts.foot + '</div>' : '');
     document.body.appendChild(d);
@@ -192,7 +192,7 @@
     return new Promise(resolve => {
       let done = false;
       const d = dialog({
-        title: t('confirm'), body: '<p>' + esc(text) + '</p>',
+        title: t('confirm'), body: '<p>' + esc(text) + '</p>', small: true,
         foot: '<button type="button" class="btn" data-close>' + esc(t('cancel')) + '</button><button type="button" class="btn ' + (danger ? 'danger' : 'primary') + '" data-ok>' + esc(okLabel || t('yes')) + '</button>',
         onClose: () => { if (!done) resolve(false); }
       });
@@ -205,7 +205,7 @@
     return new Promise(resolve => {
       let done = false;
       const d = dialog({
-        title, body: '<label class="field"><span>' + esc(label) + '</span>' + (o.textarea ? '<textarea name="v" required></textarea>' : '<input name="v" type="' + (o.type || 'text') + '" value="' + esc(o.value || '') + '" ' + (o.required === false ? '' : 'required') + '>') + '</label>',
+        title, small: true, body: '<label class="field"><span>' + esc(label) + '</span>' + (o.textarea ? '<textarea name="v" required></textarea>' : '<input name="v" type="' + (o.type || 'text') + '" value="' + esc(o.value || '') + '" ' + (o.required === false ? '' : 'required') + '>') + '</label>',
         foot: '<button type="button" class="btn" data-close>' + esc(t('cancel')) + '</button><button type="button" class="btn primary" data-ok>' + esc(o.ok || t('save')) + '</button>',
         onClose: () => { if (!done) resolve(null); },
         onMount: dd => { const i = dd.querySelector('[name=v]'); i.focus(); i.addEventListener('keydown', e => { if (e.key === 'Enter' && !o.textarea) { e.preventDefault(); dd.querySelector('[data-ok]').click(); } }); }
