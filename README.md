@@ -18,7 +18,7 @@ Təmir ustalarının, sahə rəislərinin və obyektlərin idarəetmə tətbiqi.
 | `u.html` | Ustanın link səhifəsi |
 | `config.js` | Server ünvanı (`API_URL`). Ehtiyat nüsxə: `assets/core.js` → `DEFAULT_API` |
 | `assets/` | Kod, stil, tərcümələr |
-| `sw.js`, `manifest.webmanifest`, `icons/` | Chrome-da "tətbiq kimi" açılış |
+| `sw.js`, `master.webmanifest`, `icons/` | Chrome-da "tətbiq kimi" açılış |
 | `server/Code.gs` | Server kodu (Google Apps Script) |
 
 ## Quraşdırma

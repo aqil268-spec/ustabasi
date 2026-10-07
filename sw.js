@@ -1,10 +1,10 @@
 /* Master — service worker.
    HTML və config: əvvəl şəbəkə (brauzer keşini keçərək), 3.5 san cavab yoxdursa — saxlanan nüsxə.
    Versiyalı fayllar (?v=…): saxlanan nüsxədən dərhal (versiya dəyişəndə ünvan da dəyişir). */
-const V = '0.3.2';
+const V = '0.3.3';
 const CACHE = 'ustabasi-v' + V;
 const SHELL = [
-  './', './index.html', './u.html', './config.js', './manifest.webmanifest',
+  './', './index.html', './u.html', './config.js', './master.webmanifest',
   './assets/app.css?v=' + V, './assets/i18n.js?v=' + V, './assets/core.js?v=' + V, './assets/app.js?v=' + V,
   './assets/admin.js?v=' + V, './assets/foreman.js?v=' + V, './assets/link.js?v=' + V,
   './icons/logo.svg', './icons/icon-192.png', './icons/icon-512.png'
