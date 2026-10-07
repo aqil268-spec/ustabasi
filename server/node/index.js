@@ -4,7 +4,7 @@
  * Env: DATABASE_URL (required), PORT, PUBLIC_URL, ADMIN_NAME, ADMIN_PHONE, ADMIN_PASSWORD, ADMIN_RESET, ADMIN_EMAIL, CORS_ORIGIN,
  *      SERVE_APP=1 (the server also serves the app: index.html, u.html, assets; API on /api),
  *      COMPANY_NAME (company name on first start),
- *      SUPERADMIN_PASSWORD + RENDER_API_KEY + RENDER_OWNER_ID (superadmin panel /super, see control.js).
+ *      CONTROL_KEY (hidden signed channel for the superadmin panel, see control-server.js).
  */
 'use strict';
 process.env.TZ = process.env.TZ || 'Asia/Baku';
@@ -28,7 +28,9 @@ const SERVE_APP = process.env.SERVE_APP === '1';
 const APP_DIR = path.join(__dirname, '..', '..');
 const APP_FILE = /^\/(index\.html|u\.html|sw\.js|master\.webmanifest|(?:assets|icons)\/[\w.\-]+)$/;
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.svg': 'image/svg+xml', '.json': 'application/json' };
-const control = require('./control');
+const crypto = require('crypto');
+const CONTROL_KEY = process.env.CONTROL_KEY || '';   // per company, set by the superadmin panel
+const seenNonces = new Map();
 let ready = false;
 let viewsFor = '';
 
@@ -94,16 +96,16 @@ const server = http.createServer(async (req, res) => {
     if (p === '/health') return send(res, ready ? 200 : 503, JSON.stringify({ ok: ready }));
     if (!ready) return send(res, 503, JSON.stringify({ ok: false, error: 'busy', detail: 'starting' }));
 
+    if (p.startsWith('/_ctl/')) return controlChannel(req, res, p);
+    if (licenseBlocked() && (p === '/' && req.method === 'POST' || p === '/exec' || p === '/api' || p.startsWith('/files/') || p.startsWith('/admin'))) {
+      return send(res, 200, JSON.stringify({ ok: false, error: 'license_expired', detail: 'Lisenziyanın müddəti bitib. Data saxlanılır. Uzatmaq üçün xidmət göstərənlə əlaqə saxlayın.' }));
+    }
     const fm = p.match(/^\/files\/([a-f0-9]{32})(?:\/[^/]*)?$/);
     if (req.method === 'GET' && fm) {
       const f = await store.getFile(pool, fm[1]);
       if (!f || !/^(image\/|application\/pdf$)/.test(f.mime)) return send(res, 404, 'not found', 'text/plain');
       res.writeHead(200, { 'Content-Type': f.mime, 'Content-Length': f.data.length, 'Cache-Control': 'private, max-age=31536000, immutable', 'Access-Control-Allow-Origin': CORS, 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': 'inline; filename="' + String(f.name).replace(/[^\w.\-]/g, '_') + '"' });
       return res.end(f.data);
-    }
-    if (p === '/super' || p.startsWith('/super/')) {
-      if (!control.enabled()) return send(res, 404, JSON.stringify({ ok: false, error: 'not_found' }));
-      return control.handle(req, res, p, readBody);
     }
     if (SERVE_APP && req.method === 'GET' && (p === '/' || p === '/config.js' || APP_FILE.test(p))) return serveApp(req, res, p);
     if (p === '/admin' && req.method === 'GET') {
@@ -135,6 +137,67 @@ const server = http.createServer(async (req, res) => {
     return send(res, busy ? 503 : 500, JSON.stringify({ ok: false, error: busy ? 'busy' : 'server' }));
   }
 });
+
+// ---------- license (set by the superadmin) ----------
+function licenseBlocked() {
+  const l = rt.license;
+  if (!l) return false;
+  if (l.disabled) return true;
+  return !!l.until && formatDate(new Date(), TZ, 'yyyy-MM-dd') > String(l.until).slice(0, 10);
+}
+
+/**
+ * Hidden control channel for the superadmin panel. Not a user, not in the journal.
+ * Request: POST /_ctl/<action>, headers X-Ctl-Ts (ms) and X-Ctl-Sig = hex HMAC-SHA256(CONTROL_KEY, ts + "." + action + "." + body).
+ */
+async function controlChannel(req, res, p) {
+  const action = p.slice(6);
+  if (!CONTROL_KEY || req.method !== 'POST' || !/^\w+$/.test(action)) return send(res, 404, JSON.stringify({ ok: false, error: 'not_found' }));
+  const body = await readBody(req);
+  const ts = Number(req.headers['x-ctl-ts'] || 0);
+  const sig = String(req.headers['x-ctl-sig'] || '');
+  const want = crypto.createHmac('sha256', CONTROL_KEY).update(ts + '.' + action + '.' + body).digest('hex');
+  const okSig = sig.length === want.length && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(want));
+  if (!okSig || Math.abs(Date.now() - ts) > 5 * 60000 || seenNonces.has(sig)) return send(res, 404, JSON.stringify({ ok: false, error: 'not_found' }));
+  seenNonces.set(sig, Date.now());
+  for (const [k, t] of seenNonces) if (Date.now() - t > 10 * 60000) seenNonces.delete(k);
+  let b = {};
+  try { b = JSON.parse(body || '{}'); } catch (e) { return send(res, 400, JSON.stringify({ ok: false, error: 'bad_json' })); }
+  try {
+    const data = await serial(async () => {
+      if (action === 'license') {
+        const l = b.license && typeof b.license === 'object' ? b.license : null;
+        await store.metaSet(pool, 'license', JSON.stringify(l));
+        rt.setLicense(l);
+        rt.clearCache();
+        return { license: rt.license };
+      }
+      if (action === 'resetAdmin') {
+        await runAndSave(() => rt.api.resetAdminSilent(String(b.phone || ''), String(b.password || '')));
+        return { ok: true };
+      }
+      if (action === 'stats') return stats();
+      throw new Error('unknown_action');
+    });
+    return send(res, 200, JSON.stringify({ ok: true, data }));
+  } catch (e) {
+    return send(res, 200, JSON.stringify({ ok: false, error: String(e && e.message || e) }));
+  }
+}
+
+async function stats() {
+  const usage = await runAndSave(() => rt.api.licenseUsage());
+  const db = (await pool.q(`select pg_database_size(current_database())::bigint as size,
+    (select count(*) from gas_rows)::bigint as rows,
+    (select coalesce(sum(length(data)), 0) from gas_files)::bigint as files_bytes,
+    (select count(*) from gas_files)::bigint as files`))[0];
+  const m = process.memoryUsage();
+  return {
+    version: rt.api.VERSION, usage, license: rt.license, blocked: licenseBlocked(),
+    db: { sizeBytes: Number(db.size), rows: Number(db.rows), files: Number(db.files), filesBytes: Number(db.files_bytes) },
+    memory: { rssBytes: m.rss, heapUsedBytes: m.heapUsed }, uptimeSec: Math.round(process.uptime())
+  };
+}
 
 /** The app (frontend) from the repository, same origin as the API. */
 function serveApp(req, res, p) {
@@ -190,6 +253,7 @@ async function main() {
   await store.init(pool);
   rt.load(CODE);
   rt.replaceState(await store.loadAll(pool));
+  try { const l = await store.metaGet(pool, 'license'); if (l) rt.setLicense(JSON.parse(l)); } catch (e) { console.error('license:', e.message); }
   if (!rt.state.props.SHEET_ID) {
     console.log('First start: running setup()');
     await runAndSave(() => rt.api.setup());
@@ -197,7 +261,6 @@ async function main() {
     await runAndSave(() => {});   // creates SQL views
   }
   await adminReset();
-  if (control.enabled()) await control.init(pool);
   ready = true;
   server.listen(PORT, () => console.log('Master server v' + rt.api.VERSION + ' on :' + PORT + ' (' + PUBLIC_URL + ')'));
   setInterval(() => { tick().catch(e => console.error('tick', e)); }, 60000).unref();
@@ -233,9 +296,11 @@ async function adminReset() {
   if (!word) return;
   const mark = require('crypto').createHash('sha256').update(word + '|' + (process.env.ADMIN_PHONE || '') + '|' + (process.env.ADMIN_PASSWORD || '')).digest('hex');
   if (await store.metaGet(pool, 'adminReset') === mark) return;
-  await runAndSave(() => rt.api.setAdminLogin());
+  try {
+    await runAndSave(() => rt.api.resetAdminSilent(process.env.ADMIN_PHONE || '994500000000', process.env.ADMIN_PASSWORD || ''));
+    console.log('Admin reset: login written for', process.env.ADMIN_PHONE || '994500000000');
+  } catch (e) { console.error('Admin reset failed:', e.message); }
   await store.metaSet(pool, 'adminReset', mark);
-  console.log('Admin reset: done (see the line above for the result)');
 }
 
 function stop() {

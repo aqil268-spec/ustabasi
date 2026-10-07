@@ -630,7 +630,26 @@ const DB = (function () {
 function settings() {
   const s = Object.assign({}, DEFAULT_SETTINGS);
   DB.all('Settings').forEach(r => { s[r.key] = r.value; });
+  const lic = license();
+  if (lic) {
+    // Lisenziya limitləri superadmindən gəlir: Ayarlardakı dəyər nəzərə alınmır.
+    LICENSE_KEYS.forEach(k => { if (lic[k] !== undefined && lic[k] !== null && lic[k] !== '') s[k] = String(lic[k]); });
+    s.licenseLocked = 'yes';
+  }
   return s;
+}
+
+// ---- Lisenziya (yalnız Node serverdə: superadmin təyin edir; Apps Script-də license() = null) ----
+const LICENSE_KEYS = ['maxForemen', 'maxWorkersPerForeman', 'maxWorkers'];
+function license() {
+  try { return typeof LICENSE_GET === 'function' ? (LICENSE_GET() || null) : null; } catch (e) { return null; }
+}
+/** Limit boşdursa — limitsiz. */
+function licLimit(k) {
+  const lic = license();
+  if (lic && (lic[k] === undefined || lic[k] === null || lic[k] === '')) return Infinity;
+  const v = settings()[k];
+  return v === undefined || v === '' ? Infinity : num(v);
 }
 
 /** Jurnalın sonundan oxuyur: bütün vərəqi oxumur (stress testi: 1 ildə 300 000 sətir ola bilər). */
@@ -776,18 +795,51 @@ function setAdminLogin() {
     return;
   }
   if (!validPassword(ADMIN_PASSWORD)) { Logger.log('ADMIN_PASSWORD: ən azı 8 simvol, 1 böyük hərf, 1 kiçik hərf, 1 rəqəm, 1 işarə.'); return; }
+  writeAdminLogin(ADMIN_NAME, ADMIN_PHONE, ADMIN_PASSWORD, true);
+  Logger.log('Admin girişi yazıldı. Telefon: ' + cleanPhone(ADMIN_PHONE) + '. İlk girişdə yeni şifrə yaradılır.');
+}
+
+/** Admin girişini yazır. audit=false: jurnala yazılmır (superadmin sıfırlaması — şirkətdə görünmür). */
+function writeAdminLogin(name, phone, password, withAudit) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
     P.reset(); DB.reset();
     let admin = DB.all('Users').find(u => u.role === 'admin');
     if (!admin) admin = DB.insert('Users', { id: uid('U'), role: 'admin', lang: 'az', created: nowIso(), status: 'active' });
-    DB.update('Users', admin, { name: ADMIN_NAME, phone: cleanPhone(ADMIN_PHONE), pwHash: hashPw(admin.id, ADMIN_PASSWORD), pinHash: '', mustChange: 'yes', failCount: '', lockedUntil: '', status: 'active' });
+    DB.update('Users', admin, { name: name || admin.name || 'Admin', phone: cleanPhone(phone), pwHash: hashPw(admin.id, password), pinHash: '', mustChange: 'yes', failCount: '', lockedUntil: '', status: 'active' });
     closeSessionsOf(admin.id, null);
-    audit(null, 'Users', admin.id, 'admin_reset');
+    if (withAudit) audit(null, 'Users', admin.id, 'admin_reset');
     DB.commit();
+    return admin.id;
   } finally { lock.releaseLock(); }
-  Logger.log('Admin girişi yazıldı. Telefon: ' + cleanPhone(ADMIN_PHONE) + '. İlk girişdə yeni şifrə yaradılır.');
+}
+
+/** Superadmin sıfırlaması (Node server): jurnala yazılmır. */
+function resetAdminSilent(phone, password) {
+  if (!/^\d{9,15}$/.test(cleanPhone(phone))) throw new Error('bad_phone');
+  if (!validPassword(password)) throw new Error('weak_password');
+  writeAdminLogin(null, phone, password, false);
+  return true;
+}
+
+/** Superadmin üçün say: aktiv və deaktiv istifadəçilər. */
+function licenseUsage() {
+  P.reset(); DB.reset();
+  const users = DB.all('Users'), workers = DB.all('Workers');
+  const by = {};
+  workers.filter(w => w.status === 'active').forEach(w => { by[w.foremanId] = (by[w.foremanId] || 0) + 1; });
+  return {
+    admins: users.filter(u => u.role === 'admin' && u.status === 'active').length,
+    foremen: users.filter(u => u.role === 'foreman' && u.status === 'active').length,
+    foremenInactive: users.filter(u => u.role === 'foreman' && u.status !== 'active').length,
+    workers: workers.filter(w => w.status === 'active').length,
+    workersInactive: workers.filter(w => w.status !== 'active').length,
+    maxWorkersInOneForeman: Object.keys(by).reduce((m, k) => Math.max(m, by[k]), 0),
+    sites: DB.all('Sites').length,
+    customers: DB.all('Customers').length,
+    company: settings().companyName
+  };
 }
 
 // ---- Test master data ----
@@ -2040,16 +2092,18 @@ const ADMIN = {
     const patch = { name: nameOf(f.name), phone: cleanPhone(f.phone), lang: ['az', 'ru', 'en', 'tr'].indexOf(f.lang) >= 0 ? f.lang : 'az', status: f.status || 'active', payType: f.payType || 'MONTH', payModel: f.payModel || 'STD', baseAmount: num(f.baseAmount), bonusPercent: num(f.bonusPercent) };
     const pw = f.password || '';
     if (pw && !validPassword(pw)) fail('weak_password');
+    // Limit yalnız aktivləşəndə yoxlanır: deaktiv sahə rəisi lisenziya tutmur, limit azalanda mövcudlar işləyir.
+    const activeOthers = users.filter(x => x.role === 'foreman' && x.status === 'active' && x.id !== f.id).length;
+    const prev = f.id ? DB.find('Users', 'id', f.id) : null;
+    if (patch.status === 'active' && (!prev || prev.status !== 'active') && activeOthers >= licLimit('maxForemen')) fail('limit_foremen');
     if (f.id) {
-      const row = DB.find('Users', 'id', f.id); if (!row || row.role !== 'foreman') fail('not_found');
+      const row = prev; if (!row || row.role !== 'foreman') fail('not_found');
       // Admin şifrəni sıfırlayanda istifadəçi ilk girişdə yeni şifrə yaradır.
       if (pw) Object.assign(patch, { pwHash: hashPw(row.id, pw), pinHash: '', mustChange: 'yes', failCount: '', lockedUntil: '' });
       upd(u, 'Users', row, patch, pw ? 'reset_password' : 'update');
       if (pw || patch.status !== 'active') closeSessionsOf(row.id, null);
       return { id: row.id };
     }
-    const active = users.filter(x => x.role === 'foreman' && x.status === 'active').length;
-    if (active >= num(settings().maxForemen)) fail('limit_foremen');
     if (!pw) fail('weak_password');
     const id = uid('U');
     DB.insert('Users', Object.assign({ id, role: 'foreman', created: nowIso(), pwHash: hashPw(id, pw), mustChange: 'yes' }, patch));
@@ -2080,10 +2134,20 @@ const ADMIN = {
       startTime: w.startTime || '09:00', endTime: w.endTime || '18:00',
       lang: ['az', 'ru', 'en', 'tr'].indexOf(w.lang) >= 0 ? w.lang : 'az', status: w.status || 'active'
     };
-    const inForeman = DB.all('Workers').filter(x => x.foremanId === patch.foremanId && x.status === 'active' && x.id !== w.id).length;
-    if (patch.status === 'active' && inForeman >= num(st.maxWorkersPerForeman)) fail('limit_workers');
+    // Limit yalnız usta aktivləşəndə və ya başqa sahə rəisinə keçəndə yoxlanır (limit azalanda mövcudlar işləyir).
+    const prevW = w.id ? DB.find('Workers', 'id', w.id) : null;
+    if (w.id && !prevW) fail('not_found');
+    const becomesActive = patch.status === 'active' && (!prevW || prevW.status !== 'active');
+    if (patch.status === 'active' && (becomesActive || prevW.foremanId !== patch.foremanId)) {
+      const inForeman = DB.all('Workers').filter(x => x.foremanId === patch.foremanId && x.status === 'active' && x.id !== w.id).length;
+      if (inForeman >= licLimit('maxWorkersPerForeman')) fail('limit_workers');
+    }
+    if (becomesActive) {
+      const total = DB.all('Workers').filter(x => x.status === 'active' && x.id !== w.id).length;
+      if (total >= licLimit('maxWorkers')) fail('limit_workers_total');
+    }
     if (w.id) {
-      const row = DB.find('Workers', 'id', w.id); if (!row) fail('not_found');
+      const row = prevW;
       ['foremanId', 'payType', 'baseAmount', 'payModel', 'grade', 'phone'].forEach(k => {
         if (String(row[k]) !== String(patch[k])) DB.insert('WorkerHistory', { ts: nowIso(), workerId: row.id, field: k, oldValue: row[k], newValue: patch[k], by: u.id });
       });
@@ -2211,9 +2275,10 @@ const ADMIN = {
   saveSettings(b, u) {
     const s = b.settings || {};
     const allowed = Object.keys(DEFAULT_SETTINGS);
+    const locked = license() ? LICENSE_KEYS : [];
     const before = settings(), ch = {};
     Object.keys(s).forEach(k => {
-      if (allowed.indexOf(k) < 0) return;
+      if (allowed.indexOf(k) < 0 || locked.indexOf(k) >= 0) return;
       if (k === 'companyVoen' && s[k] && !/^\d{10}$/.test(String(s[k]).replace(/\s/g, ''))) fail('bad_voen');
       if (String(before[k]) !== String(s[k])) ch[k] = [before[k], s[k]];
       const row = DB.find('Settings', 'key', k);

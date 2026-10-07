@@ -241,7 +241,9 @@ function createRuntime(opts) {
     return b;
   }
 
+  let currentLicense = null;   // set by the superadmin (index.js /_ctl/license)
   const env = {
+    LICENSE_GET: () => currentLicense,
     console, Math, Number, String, Object, Array, JSON, Date, isFinite, isNaN, parseInt, parseFloat, Error, RegExp, Boolean, Symbol, Map, Set, Promise, encodeURIComponent, decodeURIComponent,
     SpreadsheetApp: {
       getActiveSpreadsheet: () => null,
@@ -302,7 +304,7 @@ function createRuntime(opts) {
     if (process.env.ADMIN_PHONE) src = src.replace(/^const ADMIN_PHONE = .*$/m, 'const ADMIN_PHONE = ' + q(process.env.ADMIN_PHONE) + ';');
     if (process.env.ADMIN_PASSWORD) src = src.replace(/^const ADMIN_PASSWORD = .*$/m, 'const ADMIN_PASSWORD = ' + q(process.env.ADMIN_PASSWORD) + ';');
     if (process.env.COMPANY_NAME) src = src.replace(/^(\s*companyName: ).*$/m, '$1' + q(process.env.COMPANY_NAME) + ',');
-    const fns = ['setup', 'doPost', 'doGet', 'onSheetChange', 'cleanup', 'dailyBackup', 'hourly', 'weeklyMail', 'setAdminLogin', 'clearCache', 'seedTestData', 'removeTestData'];
+    const fns = ['setup', 'doPost', 'doGet', 'onSheetChange', 'cleanup', 'dailyBackup', 'hourly', 'weeklyMail', 'setAdminLogin', 'clearCache', 'seedTestData', 'removeTestData', 'resetAdminSilent', 'licenseUsage'];
     const exp = fns.map(f => f + ': typeof ' + f + ' === "function" ? ' + f + ' : null').join(', ');
     vm.runInContext(src + '\n;this.__api = { ' + exp + ', SCHEMA, VERSION };', ctx, { filename: 'Code.gs' });
     api = ctx.__api;
@@ -311,6 +313,8 @@ function createRuntime(opts) {
 
   return {
     state, env, cache, load,
+    setLicense(l) { currentLicense = l || null; },
+    get license() { return currentLicense; },
     get api() { return api; },
     takeChanges() { const c = changes; changes = newChanges(); return c; },
     hasChanges() { const c = changes; return c.rows.size || c.full.size || c.sheets.size || c.dropSheets.size || c.books.size || c.props.size || c.propsDel.size || c.files.length || c.filesDel.size || c.triggers; },

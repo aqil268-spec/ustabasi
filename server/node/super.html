@@ -4,284 +4,473 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Master — Superadmin</title>
+<title>Master Superadmin</title>
 <style>
-  :root { --bg:#f4f3ef; --card:#fff; --ink:#1c1c1a; --mute:#6c6b66; --line:#e2e0d9; --acc:#1f4f8a; --ok:#1f6b4a; --warn:#a3401f; --pend:#9a6b12; --code:#f7f6f2; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#141513; --card:#1d1f1c; --ink:#ecebe5; --mute:#a2a19a; --line:#2f312d; --acc:#7aa7e0; --ok:#5fb394; --warn:#e48262; --pend:#dbb05a; --code:#252723; } }
+  :root { --bg:#f3f2ee; --card:#fff; --ink:#1b1b19; --mute:#6b6a64; --line:#e1dfd7; --acc:#1f4f8a; --ok:#1d6a48; --warn:#a63e1c; --pend:#956810; --code:#f6f5f1; --bar:#e9e7e0; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#131412; --card:#1c1e1b; --ink:#ebeae4; --mute:#a19f98; --line:#2e302c; --acc:#7ea9e2; --ok:#62b796; --warn:#e58566; --pend:#dcb05b; --code:#252722; --bar:#2c2e2a; } }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  main { max-width:640px; margin:0 auto; padding:20px 16px 60px; }
-  header { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px; }
-  h1 { font-size:20px; margin:0; } h2 { font-size:16px; margin:0 0 10px; }
-  .sub { color:var(--mute); font-size:13px; margin:2px 0 0; }
+  main { max-width:760px; margin:0 auto; padding:16px 16px 70px; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; }
+  h1 { font-size:19px; margin:0; } h2 { font-size:16px; margin:0 0 10px; } h3 { font-size:14px; margin:14px 0 6px; color:var(--mute); text-transform:uppercase; letter-spacing:.04em; }
+  .sub { color:var(--mute); font-size:12px; margin:2px 0 0; }
+  nav { display:flex; gap:6px; overflow-x:auto; margin-bottom:12px; padding-bottom:2px; }
+  nav button { background:transparent; color:var(--ink); border:1px solid var(--line); white-space:nowrap; }
+  nav button.on { background:var(--ink); color:var(--bg); border-color:var(--ink); }
   .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
   label { display:block; font-size:12px; color:var(--mute); margin:10px 0 4px; }
-  input, select { width:100%; padding:10px 11px; font-size:16px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); }
-  button { padding:10px 14px; font-size:14px; font-weight:600; border:0; border-radius:8px; background:var(--acc); color:#fff; cursor:pointer; }
-  button.block { width:100%; margin-top:14px; padding:12px; font-size:15px; }
+  input, select, textarea { width:100%; padding:9px 10px; font-size:16px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); font-family:inherit; }
+  input[type=checkbox] { width:auto; }
+  button { padding:9px 13px; font-size:14px; font-weight:600; border:0; border-radius:8px; background:var(--acc); color:#fff; cursor:pointer; }
+  button.block { width:100%; margin-top:12px; padding:11px; }
   button.sec { background:transparent; color:var(--ink); border:1px solid var(--line); }
   button.warn { background:var(--warn); }
-  button.sm { padding:6px 10px; font-size:12px; }
+  button.sm { padding:5px 9px; font-size:12px; }
   button:disabled { opacity:.5; cursor:default; }
-  .row { display:flex; gap:8px; } .row > * { flex:1; }
-  .co { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:12px 0; border-top:1px solid var(--line); cursor:pointer; }
-  .co:first-of-type { border-top:0; }
-  .co b { display:block; } .co small { color:var(--mute); font-size:12px; }
-  .badge { font-size:11px; font-weight:700; padding:3px 8px; border-radius:99px; white-space:nowrap; border:1px solid currentColor; }
-  .b-ready { color:var(--ok); } .b-creating { color:var(--pend); } .b-failed { color:var(--warn); }
-  .kv { display:grid; grid-template-columns:120px 1fr; gap:6px 10px; font-size:13px; align-items:start; }
-  .kv dt { color:var(--mute); } .kv dd { margin:0; word-break:break-all; }
-  code, .mono { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; background:var(--code); border:1px solid var(--line); border-radius:6px; padding:2px 6px; }
-  .secret { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
-  .note { font-size:12px; color:var(--mute); margin-top:8px; }
-  .err { color:var(--warn); font-size:13px; margin-top:10px; min-height:1em; }
-  .okmsg { color:var(--ok); font-size:13px; margin-top:10px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; } .row > * { flex:1 1 140px; }
+  .list-item { padding:12px 0; border-top:1px solid var(--line); cursor:pointer; }
+  .list-item:first-child { border-top:0; padding-top:0; }
+  .li-top { display:flex; justify-content:space-between; gap:8px; align-items:center; }
+  .li-top b { font-size:15px; }
+  .chain { display:flex; flex-wrap:wrap; gap:4px 6px; align-items:center; margin-top:6px; font-size:12px; color:var(--mute); }
+  .chain span.n { border:1px solid var(--line); border-radius:6px; padding:2px 6px; background:var(--code); color:var(--ink); }
+  .chain i { font-style:normal; opacity:.6; }
+  .badge { font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px; white-space:nowrap; border:1px solid currentColor; display:inline-block; }
+  .ok { color:var(--ok); } .pend { color:var(--pend); } .bad { color:var(--warn); } .mute { color:var(--mute); }
+  .kv { display:grid; grid-template-columns:130px 1fr; gap:6px 10px; font-size:13px; align-items:start; }
+  .kv dt { color:var(--mute); } .kv dd { margin:0; word-break:break-word; }
+  .mono { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; background:var(--code); border:1px solid var(--line); border-radius:6px; padding:2px 6px; word-break:break-all; }
+  .secret { display:inline-flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .note { font-size:12px; color:var(--mute); margin:8px 0 0; }
+  .err { color:var(--warn); font-size:13px; margin-top:8px; min-height:1em; }
+  .msg { font-size:13px; margin-top:8px; }
+  .meter { margin:6px 0 10px; font-size:13px; }
+  .meter .bar { height:8px; border-radius:4px; background:var(--bar); overflow:hidden; margin-top:4px; }
+  .meter .bar div { height:100%; background:var(--ok); }
+  .meter.over .bar div { background:var(--warn); }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:6px 4px; border-top:1px solid var(--line); vertical-align:top; }
+  th { color:var(--mute); font-weight:600; border-top:0; }
+  .flow { display:grid; gap:6px; }
+  .flow .step { display:flex; gap:10px; align-items:flex-start; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--code); font-size:13px; }
+  .flow .step b { min-width:82px; }
+  .flow .arrow { text-align:center; color:var(--mute); font-size:12px; line-height:1; }
+  .codes { display:grid; grid-template-columns:repeat(2, 1fr); gap:6px; margin-top:8px; }
   a { color:var(--acc); }
-  .empty { color:var(--mute); text-align:center; padding:20px 0; }
-  .warnbox { border-color:var(--warn); }
   [hidden] { display:none !important; }
 </style>
 </head>
 <body>
 <main>
   <header>
-    <div><h1>Master — Superadmin</h1><p class="sub">Şirkətlər, serverlər, bazalar</p></div>
+    <div><h1>Master — Superadmin</h1><p class="sub" id="today"></p></div>
     <button class="sec sm" id="logout" hidden>Çıxış</button>
   </header>
 
-  <!-- login -->
   <section class="card" id="v-login">
-    <label for="pw">Superadmin şifrəsi</label>
-    <input id="pw" type="password" autocomplete="current-password">
-    <button class="block" id="go">Daxil ol</button>
+    <div id="l-pw">
+      <label for="pw">Superadmin şifrəsi</label>
+      <input id="pw" type="password" autocomplete="current-password">
+      <button class="block" id="go">Davam et</button>
+    </div>
+    <div id="l-setup" hidden>
+      <h2>2 addımlı giriş (ilk dəfə)</h2>
+      <p class="note">1. Telefonda Google Authenticator-u açın. 2. Aşağıdakı düymə ilə və ya açarı əl ilə yazaraq hesab əlavə edin. 3. Tətbiqdəki 6 rəqəmli kodu yazın.</p>
+      <a id="l-uri" class="block" style="display:block;margin-top:10px"><button class="block sec" type="button">Google Authenticator-da aç</button></a>
+      <label>Açar (əl ilə əlavə etmək üçün)</label>
+      <div class="secret"><span class="mono" id="l-secret"></span></div>
+    </div>
+    <div id="l-code" hidden>
+      <label for="code">Authenticator kodu (və ya bərpa kodu)</label>
+      <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="11">
+      <button class="block" id="go2">Daxil ol</button>
+    </div>
+    <div id="l-rec" hidden>
+      <h2>Bərpa kodları</h2>
+      <p class="note">Telefon itəndə bu kodlarla daxil olacaqsınız. Hər kod 1 dəfə işləyir. İndi saxlayın — bir daha göstərilməyəcək.</p>
+      <div class="codes" id="l-codes"></div>
+      <button class="block" id="l-done">Saxladım, davam et</button>
+    </div>
     <div class="err" id="lerr"></div>
   </section>
 
-  <!-- list -->
-  <section id="v-list" hidden>
-    <div class="card warnbox" id="noapi" hidden>
-      <b>Render API açarı yoxdur.</b>
-      <p class="note">Şirkət yaratmaq üçün bu serverin Render ayarlarında <code>RENDER_API_KEY</code> və <code>RENDER_OWNER_ID</code> olmalıdır.</p>
-    </div>
-    <div class="row" style="margin-bottom:12px">
-      <button id="new">+ Şirkət yarat</button>
-      <button class="sec" id="deployAll">Hamısını yenilə</button>
-    </div>
-    <div class="card" id="list"></div>
-    <div class="err" id="gerr"></div>
-  </section>
-
-  <!-- create -->
-  <section class="card" id="v-new" hidden>
-    <h2>Yeni şirkət</h2>
-    <label for="n-name">Şirkətin adı</label>
-    <input id="n-name" maxlength="80" placeholder="Məs. Usta Group MMC">
-    <label for="n-slug">Qısa ad (server adında istifadə olunur: a-z, 0-9, -)</label>
-    <input id="n-slug" maxlength="20" placeholder="usta-group">
-    <label for="n-phone">Şirkət adminin telefonu</label>
-    <input id="n-phone" inputmode="numeric" placeholder="994501234567">
-    <div class="row">
-      <div><label for="n-web">Server planı</label><select id="n-web"></select></div>
-      <div><label for="n-db">Baza planı</label><select id="n-db"></select></div>
-    </div>
-    <p class="note">Hər şirkət üçün Render-də 1 server və 1 PostgreSQL yaradılır. Ödənişli planlar Render hesabınızdan aylıq ödənilir. "free" server 15 dəq boş qalanda yatır — yalnız sınaq üçün.</p>
-    <div class="row" style="margin-top:12px">
-      <button class="sec" id="n-cancel">Ləğv et</button>
-      <button id="n-go">Yarat</button>
-    </div>
-    <div class="err" id="nerr"></div>
-  </section>
-
-  <!-- detail -->
-  <section id="v-info" hidden>
-    <button class="sec sm" id="back" style="margin-bottom:12px">← Siyahı</button>
-    <div class="card" id="info"></div>
-    <div class="card">
-      <h2>Admin şifrəsini sıfırla</h2>
-      <p class="note">Yeni müvəqqəti şifrə yaradılır, server yenidən başlayır (1–3 dəq). Admin ilk girişdə öz şifrəsini yaradır.</p>
-      <label for="r-phone">Admin telefonu</label>
-      <input id="r-phone" inputmode="numeric">
-      <button class="block warn" id="r-go">Sıfırla</button>
-      <div id="r-out"></div>
-    </div>
-    <div class="card">
-      <h2>Domen bağla</h2>
-      <label for="d-name">Domen</label>
-      <input id="d-name" placeholder="app.sirket.az">
-      <button class="block" id="d-go">Əlavə et</button>
-      <div id="d-out"></div>
-    </div>
+  <section id="v-app" hidden>
+    <nav id="tabs"></nav>
+    <div id="view"></div>
   </section>
 </main>
 <script>
 (function () {
+  'use strict';
   const $ = id => document.getElementById(id);
-  const el = (tag, attrs, ...kids) => {
+  function el(tag, attrs, ...kids) {
     const e = document.createElement(tag);
-    Object.entries(attrs || {}).forEach(([k, v]) => { if (k === 'class') e.className = v; else if (k === 'text') e.textContent = v; else if (k.startsWith('on')) e[k] = v; else e.setAttribute(k, v); });
-    kids.flat().forEach(k => { if (k !== null && k !== undefined) e.append(k.nodeType ? k : document.createTextNode(String(k))); });
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (v === undefined || v === null || v === false) continue;
+      if (k === 'class') e.className = v; else if (k === 'text') e.textContent = v;
+      else if (k.startsWith('on')) e[k] = v; else e.setAttribute(k, v === true ? '' : v);
+    }
+    kids.flat(9).forEach(k => { if (k !== null && k !== undefined && k !== false) e.append(k.nodeType ? k : document.createTextNode(String(k))); });
     return e;
-  };
-  let token = '', meta = null, current = null, timer = null;
-  const views = ['v-login', 'v-list', 'v-new', 'v-info'];
-  const show = v => { views.forEach(x => { $(x).hidden = x !== v; }); $('logout').hidden = v === 'v-login'; };
-  const STATUS = { ready: 'Hazır', creating: 'Qurulur', failed: 'Xəta' };
-  const ERR = { bad_login: 'Şifrə səhvdir.', locked: 'Çox səhv cəhd. 15 dəqiqə sonra yenidən cəhd edin.', forbidden: 'Sessiya bitib. Yenidən daxil olun.' };
-
+  }
+  let token = '', temp = '', D = null, tab = 'companies', openId = null, timer = null;
+  const ERR = { bad_login: 'Şifrə səhvdir.', bad_code: 'Kod səhvdir.', locked: 'Çox səhv cəhd. 15 dəqiqə sonra yenidən cəhd edin.', expired: 'Vaxt bitdi. Yenidən başlayın.', forbidden: 'Sessiya bitib. Yenidən daxil olun.' };
+  const msg = e => ERR[e] || e || 'Xəta';
   async function api(act, body) {
-    const r = await fetch('/super/api/' + act, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token }, body || {})) });
-    const j = await r.json().catch(() => ({ ok: false, error: 'server' }));
-    if (j.error === 'forbidden' && act !== 'login') { token = ''; show('v-login'); }
+    let j;
+    try {
+      const r = await fetch('/super/api/' + act, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ token }, body || {})) });
+      j = await r.json();
+    } catch (e) { j = { ok: false, error: 'Serverə qoşulmaq olmadı' }; }
+    if (j.error === 'forbidden' && act !== 'login') { token = ''; showLogin(); }
     return j;
   }
-  const msg = e => ERR[e] || e || 'Xəta';
-
-  function copyBtn(text) {
-    return el('button', { class: 'sec sm', text: 'Kopyala', onclick: async ev => { try { await navigator.clipboard.writeText(text); ev.target.textContent = 'Kopyalandı'; } catch (e) { ev.target.textContent = 'Alınmadı'; } } });
+  const fmtBytes = n => n === null || n === undefined ? '—' : n < 1048576 ? (n / 1024).toFixed(0) + ' KB' : n < 1073741824 ? (n / 1048576).toFixed(1) + ' MB' : (n / 1073741824).toFixed(2) + ' GB';
+  const money = (v, c) => v === null || v === undefined ? '—' : Number(v).toFixed(2) + ' ' + (c || '');
+  const lim = v => v === null || v === undefined || v === '' ? '∞' : String(v);
+  function daysBadge(left, date) {
+    if (left === null || left === undefined) return el('span', { class: 'mute', text: '—' });
+    const cls = left < 0 ? 'bad' : left <= 7 ? 'bad' : left <= 30 ? 'pend' : 'ok';
+    return el('span', { class: 'badge ' + cls, text: (date ? date + ' · ' : '') + (left < 0 ? Math.abs(left) + ' gün keçib' : left + ' gün') });
   }
+  const STATUS = { ready: ['Hazır', 'ok'], creating: ['Qurulur', 'pend'], failed: ['Xəta', 'bad'] };
+  const status = s => el('span', { class: 'badge ' + (STATUS[s] || ['', 'mute'])[1], text: (STATUS[s] || [s])[0] });
+  function copyBtn(text) { return el('button', { class: 'sec sm', text: 'Kopyala', onclick: async ev => { ev.stopPropagation(); try { await navigator.clipboard.writeText(text); ev.target.textContent = 'Kopyalandı'; } catch (e) { ev.target.textContent = 'Alınmadı'; } } }); }
   function secret(text) {
-    const code = el('span', { class: 'mono', text: '••••••••' });
-    let open = false;
+    if (!text) return el('span', { class: 'mute', text: '—' });
+    const code = el('span', { class: 'mono', text: '••••••••' }); let open = false;
     const b = el('button', { class: 'sec sm', text: 'Göstər', onclick: () => { open = !open; code.textContent = open ? text : '••••••••'; b.textContent = open ? 'Gizlət' : 'Göstər'; } });
     return el('span', { class: 'secret' }, code, b, copyBtn(text));
   }
-  const link = (href, text) => el('a', { href, target: '_blank', rel: 'noopener noreferrer', text: text || href });
+  const link = (href, text) => href ? el('a', { href, target: '_blank', rel: 'noopener noreferrer', text: text || href }) : el('span', { class: 'mute', text: '—' });
+  const field = (label, input) => el('div', {}, el('label', { text: label }), input);
+  const inp = (attrs) => el('input', attrs);
+  function sel(options, value) { const s = el('select'); options.forEach(o => { const [v, t] = Array.isArray(o) ? o : [o, o]; const op = el('option', { value: v, text: t }); if (String(v) === String(value ?? '')) op.selected = true; s.append(op); }); return s; }
+  function kv(rows) { const dl = el('dl', { class: 'kv' }); rows.filter(Boolean).forEach(([k, v]) => dl.append(el('dt', { text: k }), el('dd', {}, v))); return dl; }
+  function meter(label, used, max) {
+    const unlimited = max === null || max === undefined;
+    const pct = unlimited ? 0 : Math.min(100, max ? used / max * 100 : 100);
+    const over = !unlimited && used > max;
+    return el('div', { class: 'meter' + (over ? ' over' : '') }, el('div', {}, label + ': ', el('b', { text: (used ?? '?') + ' / ' + lim(max) }), over ? el('span', { class: 'bad', text: ' (limitdən çox)' }) : ''),
+      unlimited ? '' : el('div', { class: 'bar' }, el('div', { style: 'width:' + pct + '%' })));
+  }
+  function out(box, ok, text) { box.textContent = ''; box.append(el('div', { class: ok ? 'msg ok' : 'err', text })); }
 
-  // ---- login
+  // ================= login
+  function showLogin() { clearTimeout(timer); $('v-app').hidden = true; $('v-login').hidden = false; $('logout').hidden = true; ['l-setup', 'l-code', 'l-rec'].forEach(x => { $(x).hidden = true; }); $('l-pw').hidden = false; $('lerr').textContent = ''; }
   $('go').onclick = async () => {
     $('lerr').textContent = ''; $('go').disabled = true;
-    try {
-      const r = await api('login', { password: $('pw').value });
-      if (!r.ok) { $('lerr').textContent = msg(r.error); return; }
-      token = r.token; $('pw').value = ''; await loadList();
-    } catch (e) { $('lerr').textContent = 'Serverə qoşulmaq olmadı.'; }
-    finally { $('go').disabled = false; }
+    const r = await api('login', { password: $('pw').value }); $('go').disabled = false;
+    if (!r.ok) { $('lerr').textContent = msg(r.error); return; }
+    $('pw').value = ''; temp = r.temp; $('l-pw').hidden = true; $('l-code').hidden = false;
+    if (r.step === 'setup') { $('l-setup').hidden = false; $('l-uri').href = r.uri; $('l-secret').textContent = r.secret.replace(/(.{4})/g, '$1 ').trim(); }
+    $('code').value = ''; $('code').focus();
   };
   $('pw').onkeydown = e => { if (e.key === 'Enter') $('go').click(); };
-  $('logout').onclick = async () => { await api('logout'); token = ''; show('v-login'); };
+  $('code').onkeydown = e => { if (e.key === 'Enter') $('go2').click(); };
+  $('go2').onclick = async () => {
+    $('lerr').textContent = ''; $('go2').disabled = true;
+    const r = await api('login', { temp, code: $('code').value.trim() }); $('go2').disabled = false;
+    if (!r.ok) { $('lerr').textContent = msg(r.error); if (r.error === 'expired') showLogin(); return; }
+    token = r.token;
+    if (r.recoveryCodes) {
+      ['l-setup', 'l-code'].forEach(x => { $(x).hidden = true; }); $('l-rec').hidden = false;
+      $('l-codes').textContent = ''; r.recoveryCodes.forEach(c => $('l-codes').append(el('span', { class: 'mono', text: c })));
+      $('l-codes').append(el('div', { style: 'grid-column:1/-1' }, copyBtn(r.recoveryCodes.join('\n'))));
+      return;
+    }
+    enter();
+  };
+  $('l-done').onclick = () => enter();
+  $('logout').onclick = async () => { await api('logout'); token = ''; showLogin(); };
+  async function enter() { $('v-login').hidden = true; $('v-app').hidden = false; $('logout').hidden = false; await reload(); }
 
-  // ---- list
-  async function loadList() {
-    const r = await api('list');
-    if (!r.ok) { $('gerr').textContent = msg(r.error); return; }
-    meta = r.data;
-    $('noapi').hidden = meta.api;
-    $('new').disabled = !meta.api;
-    const box = $('list'); box.textContent = '';
-    if (!meta.companies.length) box.append(el('div', { class: 'empty', text: 'Hələ şirkət yoxdur.' }));
-    meta.companies.forEach(c => {
-      box.append(el('div', { class: 'co', onclick: () => openInfo(c.id) },
-        el('div', {}, el('b', { text: c.name }), el('small', { text: c.slug + ' · ' + (c.domains[0] || c.url || c.step) })),
-        el('span', { class: 'badge b-' + c.status, text: STATUS[c.status] || c.status })));
-    });
-    show('v-list');
-    clearTimeout(timer);
-    if (meta.companies.some(c => c.status === 'creating')) timer = setTimeout(() => { if (!$('v-list').hidden) loadList(); }, 8000);
+  // ================= shell
+  const TABS = [['companies', 'Şirkətlər'], ['packages', 'Paketlər'], ['domains', 'Domenlər'], ['journal', 'Jurnal'], ['settings', 'Ayarlar']];
+  function renderTabs() { const n = $('tabs'); n.textContent = ''; TABS.forEach(([k, t]) => n.append(el('button', { class: k === tab && openId === null ? 'on' : '', text: t, onclick: () => { tab = k; openId = null; render(); } }))); }
+  async function reload() { const r = await api('overview'); if (!r.ok) { $('view').textContent = msg(r.error); return; } D = r.data; $('today').textContent = 'Bu gün: ' + D.config.today; render(); }
+  function render() {
+    clearTimeout(timer); renderTabs();
+    const v = $('view'); v.textContent = '';
+    if (openId !== null) return renderCompany(v, openId);
+    ({ companies: renderCompanies, packages: renderPackages, domains: renderDomains, journal: renderJournal, settings: renderSettings })[tab](v);
   }
-  $('deployAll').onclick = async () => {
+
+  // ================= companies (map)
+  function chain(c) {
+    const st = c.stats || {}, u = st.usage || {}, L = c.license || {};
+    const node = (t) => el('span', { class: 'n', text: t });
+    return el('div', { class: 'chain' },
+      node('Server: ' + (c.webPlan || '—')), el('i', { text: '→' }),
+      node('Baza: ' + (c.dbPlan || '—') + (st.db ? ' · ' + fmtBytes(st.db.sizeBytes) : '')), el('i', { text: '→' }),
+      node('Domen: ' + (c.domains.length ? c.domains.map(d => d.name + (d.dnsOk ? ' ✓' : ' …')).join(', ') : 'yoxdur')), el('i', { text: '→' }),
+      node('Lisenziya: ' + (L.package || 'paketsiz') + ' · rəis ' + (u.foremen ?? '?') + '/' + lim(L.maxForemen) + ' · usta ' + (u.workers ?? '?') + '/' + lim(L.maxWorkers)), el('i', { text: '→' }),
+      daysBadge(c.licenseDaysLeft, c.licenseUntil));
+  }
+  function renderCompanies(v) {
+    const top = el('div', { class: 'row', style: 'margin-bottom:12px' },
+      el('button', { text: '+ Şirkət yarat', disabled: !D.config.api, onclick: () => renderCreate(v) }),
+      el('button', { class: 'sec', text: 'Mövcud serveri qoş', disabled: !D.config.api, onclick: () => renderAttach(v) }),
+      el('button', { class: 'sec', text: 'Hamısını yenilə', disabled: !D.config.api, onclick: deployAll }));
+    v.append(top);
+    if (!D.config.api) v.append(el('div', { class: 'card' }, el('b', { class: 'bad', text: 'Render API açarı yoxdur. ' }), 'Bu serverin Environment bölməsinə RENDER_API_KEY və RENDER_OWNER_ID əlavə edin.'));
+    const box = el('div', { class: 'card' });
+    if (!D.companies.length) box.append(el('div', { class: 'mute', text: 'Hələ şirkət yoxdur.' }));
+    D.companies.forEach(c => box.append(el('div', { class: 'list-item', onclick: () => { openId = c.id; render(); } },
+      el('div', { class: 'li-top' }, el('b', { text: c.name }), el('span', {}, c.disabled ? el('span', { class: 'badge bad', text: 'Bloklanıb' }) : '', ' ', c.licSynced ? '' : el('span', { class: 'badge pend', text: 'Lisenziya göndərilməyib' }), ' ', status(c.status))),
+      el('div', { class: 'sub', text: c.slug + (c.url ? ' · ' + c.url.replace(/^https?:\/\//, '') : '') + (c.status === 'creating' ? ' · ' + c.step : '') }),
+      chain(c))));
+    v.append(box);
+    if (D.companies.some(c => c.status === 'creating')) timer = setTimeout(async () => { if (tab === 'companies' && openId === null) await reload(); }, 8000);
+  }
+  async function deployAll() {
     if (!confirm('Bütün şirkət serverləri yeni kodla yenidən qurulsun? Hər biri 1–3 dəq işləməyəcək.')) return;
-    $('deployAll').disabled = true; $('gerr').textContent = '';
     const r = await api('deployAll');
-    $('deployAll').disabled = false;
-    if (!r.ok) { $('gerr').textContent = msg(r.error); return; }
+    if (!r.ok) return alert(msg(r.error));
     const bad = r.data.results.filter(x => !x.ok);
-    $('gerr').textContent = bad.length ? 'Alınmadı: ' + bad.map(x => x.slug + ' (' + x.error + ')').join(', ') : '';
-    alert('Yeniləmə başladı: ' + r.data.results.filter(x => x.ok).length + ' server.');
-  };
-
-  // ---- create
+    alert('Başladı: ' + r.data.results.filter(x => x.ok).length + ' server.' + (bad.length ? '\nAlınmadı: ' + bad.map(x => x.slug + ' — ' + x.error).join('\n') : ''));
+  }
   const slugify = s => String(s || '').replace(/[əıöüşçğƏIİÖÜŞÇĞ]/g, c => ({ ə:'e',ı:'i',ö:'o',ü:'u',ş:'s',ç:'c',ğ:'g',Ə:'e',I:'i',İ:'i',Ö:'o',Ü:'u',Ş:'s',Ç:'c',Ğ:'g' })[c]).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 20).replace(/-+$/, '');
-  let slugTouched = false;
-  $('new').onclick = () => {
-    ['n-name', 'n-slug', 'n-phone'].forEach(id => { $(id).value = ''; }); slugTouched = false; $('nerr').textContent = '';
-    $('n-web').textContent = ''; meta.webPlans.forEach(p => $('n-web').append(el('option', { value: p, text: p })));
-    $('n-db').textContent = ''; meta.dbPlans.forEach(p => $('n-db').append(el('option', { value: p, text: p })));
-    $('n-web').value = 'starter'; $('n-db').value = 'basic_256mb';
-    show('v-new'); $('n-name').focus();
-  };
-  $('n-name').oninput = () => { if (!slugTouched) $('n-slug').value = slugify($('n-name').value); };
-  $('n-slug').oninput = () => { slugTouched = true; };
-  $('n-cancel').onclick = () => loadList();
-  $('n-go').onclick = async () => {
-    $('nerr').textContent = '';
-    const body = { name: $('n-name').value, slug: $('n-slug').value, adminPhone: $('n-phone').value, webPlan: $('n-web').value, dbPlan: $('n-db').value };
-    if (!confirm('"' + body.name + '" üçün Render-də server (' + body.webPlan + ') və baza (' + body.dbPlan + ') yaradılsın? Ödənişli planlar aylıq hesablanır.')) return;
-    $('n-go').disabled = true;
-    try {
-      const r = await api('create', body);
-      if (!r.ok) { $('nerr').textContent = msg(r.error); return; }
-      openInfo(r.data.company.id);
-    } finally { $('n-go').disabled = false; }
-  };
-
-  // ---- detail
-  $('back').onclick = () => loadList();
-  async function openInfo(id) {
-    clearTimeout(timer);
-    current = id;
-    $('r-out').textContent = ''; $('d-out').textContent = ''; $('d-name').value = '';
-    const box = $('info'); box.textContent = 'Yüklənir…'; show('v-info');
-    const r = await api('info', { id });
-    if (!r.ok) { box.textContent = msg(r.error); return; }
-    const d = r.data, c = d.company;
-    $('r-phone').value = c.adminPhone;
-    const rows = [
-      ['Şirkət', c.name],
-      ['Status', el('span', { class: 'badge b-' + c.status, text: STATUS[c.status] || c.status })],
-      ['Addım', c.step || '—'],
-      c.error ? ['Xəta', el('span', { style: 'color:var(--warn)', text: c.error })] : null,
-      ['Tətbiq', c.url ? link(c.url) : '—'],
-      ['Admin telefonu', el('span', { class: 'secret' }, el('span', { class: 'mono', text: c.adminPhone }), copyBtn(c.adminPhone))],
-      ['Admin şifrəsi', secret(c.adminPassword)],
-      ['Xidmət səhifəsi', c.url ? link(c.url + '/admin') : '—'],
-      ['Server deploy', d.deploy ? (d.deploy.error || d.deploy.status) : '—'],
-      ['Domenlər', d.domains.length ? d.domains.map(x => x.name + ' (' + x.status + ')').join(', ') : (c.domains.join(', ') || '—')],
-      ['Planlar', c.webPlan + ' / ' + c.dbPlan + ' · ' + c.region],
-      ['Render server', c.renderService ? link(c.renderService, 'Panelda aç') : '—'],
-      ['Render baza', c.renderDb ? link(c.renderDb, 'Panelda aç') : '—']
-    ];
-    if (d.db && !d.db.error) {
-      rows.push(['Baza statusu', d.db.status + (d.db.expiresAt ? ' · bitir: ' + String(d.db.expiresAt).slice(0, 10) : '')]);
-      rows.push(['Baza adı / user', d.db.database + ' / ' + d.db.user]);
-      rows.push(['Daxili URL', secret(d.db.internal)]);
-      rows.push(['Xarici URL', secret(d.db.external)]);
-    } else if (d.db && d.db.error) rows.push(['Baza', d.db.error]);
-    const dl = el('dl', { class: 'kv' });
-    rows.filter(Boolean).forEach(([k, v]) => dl.append(el('dt', { text: k }), el('dd', {}, v)));
-    box.textContent = '';
-    box.append(el('h2', { text: c.name }), dl);
-    box.append(el('p', { class: 'note', text: 'Admin şifrəsi müvəqqətidir: şirkətin admini ilk girişdə yenisini yaradır. Xarici baza URL-i yalnız IP allowlist-ə əlavə olunan ünvandan işləyir.' }));
-    if (c.status === 'failed') box.append(el('button', { class: 'block', text: 'Quraşdırmanı davam etdir', onclick: async () => { const x = await api('retry', { id: c.id }); if (!x.ok) alert(msg(x.error)); else openInfo(c.id); } }));
-    if (c.status === 'creating') timer = setTimeout(() => { if (current === id && !$('v-info').hidden) openInfo(id); }, 8000);
+  const plus = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  const pkgOptions = () => [['', '— paketsiz (limitsiz) —']].concat(D.packages.map(p => [p.id, p.name + ' · rəis ' + lim(p.maxForemen) + ', usta ' + lim(p.maxWorkers)]));
+  function renderCreate(v) {
+    v.textContent = '';
+    const f = { name: inp({ maxlength: 80, placeholder: 'Məs. Usta Group MMC' }), slug: inp({ maxlength: 20, placeholder: 'usta-group' }), phone: inp({ inputmode: 'numeric', placeholder: '994501234567' }),
+      email: inp({ type: 'email', placeholder: 'admin@sirket.az (domen əlavə edəndə avtomatik)' }), pkg: sel(pkgOptions(), D.packages[0] && D.packages[0].id), until: inp({ type: 'date', value: plus(30) }),
+      price: inp({ type: 'number', min: 0, step: '0.01', placeholder: 'Aylıq məbləğ' }), cur: sel(D.config.currencies, 'AZN'), web: sel(D.config.webPlans, 'starter'), db: sel(D.config.dbPlans, 'basic_256mb') };
+    let touched = false;
+    f.name.oninput = () => { if (!touched) f.slug.value = slugify(f.name.value); }; f.slug.oninput = () => { touched = true; };
+    const err = el('div');
+    const go = el('button', { text: 'Yarat', onclick: async () => {
+      const body = { name: f.name.value, slug: f.slug.value, adminPhone: f.phone.value, adminEmail: f.email.value, packageId: f.pkg.value, licenseUntil: f.until.value, monthlyPrice: f.price.value, currency: f.cur.value, webPlan: f.web.value, dbPlan: f.db.value };
+      if (!confirm('"' + body.name + '" üçün Render-də server (' + body.webPlan + ') və baza (' + body.dbPlan + ') yaradılsın? Ödənişli planlar aylıq hesablanır.')) return;
+      go.disabled = true; const r = await api('create', body); go.disabled = false;
+      if (!r.ok) return out(err, false, msg(r.error));
+      await reload(); openId = r.data.company.id; render();
+    } });
+    v.append(el('div', { class: 'card' }, el('h2', { text: 'Yeni şirkət' }),
+      field('Şirkətin adı', f.name), field('Qısa ad (Render-də server adı: a-z, 0-9, -)', f.slug),
+      el('div', { class: 'row' }, field('Admin telefonu', f.phone), field('Admin e-poçtu', f.email)),
+      el('div', { class: 'row' }, field('Paket', f.pkg), field('Lisenziya son tarixi', f.until)),
+      el('div', { class: 'row' }, field('Aylıq məbləğ', f.price), field('Valyuta', f.cur)),
+      el('div', { class: 'row' }, field('Server planı (Render)', f.web), field('Baza planı (Render)', f.db)),
+      el('p', { class: 'note', text: 'Render-də şirkət üçün ayrıca 1 baza və 1 server yaradılır (5–10 dəq). "free" server boş qalanda yatır — yalnız sınaq üçün.' }),
+      el('div', { class: 'row', style: 'margin-top:12px' }, el('button', { class: 'sec', text: 'Ləğv et', onclick: render }), go), err));
+  }
+  function renderAttach(v) {
+    v.textContent = '';
+    const f = { svc: inp({ placeholder: 'srv-…' }), pg: inp({ placeholder: 'dpg-… (istəyə görə)' }), name: inp({}), phone: inp({ inputmode: 'numeric', placeholder: '994500000000' }), pkg: sel(pkgOptions(), ''), until: inp({ type: 'date', value: plus(30) }) };
+    const err = el('div');
+    const go = el('button', { text: 'Qoş', onclick: async () => {
+      if (!confirm('Server panelə qoşulsun? Ona gizli açar yazılacaq və server 1–3 dəq yenidən başlayacaq.')) return;
+      go.disabled = true; const r = await api('attach', { serviceId: f.svc.value, pgId: f.pg.value, name: f.name.value, adminPhone: f.phone.value, packageId: f.pkg.value, licenseUntil: f.until.value }); go.disabled = false;
+      if (!r.ok) return out(err, false, msg(r.error));
+      await reload(); openId = r.data.company.id; render();
+    } });
+    v.append(el('div', { class: 'card' }, el('h2', { text: 'Mövcud serveri qoş' }), el('p', { class: 'note', text: 'Əvvəl yaradılmış şirkət serveri (məs. test serveri). ID-ləri Render panelində URL-dən götürün.' }),
+      el('div', { class: 'row' }, field('Server ID', f.svc), field('Baza ID', f.pg)), field('Şirkətin adı', f.name),
+      el('div', { class: 'row' }, field('Admin telefonu', f.phone), field('Paket', f.pkg)), field('Lisenziya son tarixi', f.until),
+      el('div', { class: 'row', style: 'margin-top:12px' }, el('button', { class: 'sec', text: 'Ləğv et', onclick: render }), go), err));
   }
 
-  $('r-go').onclick = async () => {
-    if (!confirm('Admin şifrəsi sıfırlansın? Şirkətin serveri 1–3 dəq yenidən başlayacaq.')) return;
-    $('r-go').disabled = true; $('r-out').textContent = '';
-    try {
-      const r = await api('resetAdmin', { id: current, adminPhone: $('r-phone').value });
-      if (!r.ok) { $('r-out').append(el('div', { class: 'err', text: msg(r.error) })); return; }
-      $('r-out').append(el('div', { class: 'okmsg' }, 'Hazırdır. 1–3 dəq sonra bu məlumatla daxil olun: ', el('br'),
-        'Telefon: ', el('span', { class: 'mono', text: r.data.adminPhone }), el('br'), 'Şifrə: ', secret(r.data.adminPassword)));
-    } finally { $('r-go').disabled = false; }
-  };
+  // ================= one company
+  async function renderCompany(v, id) {
+    v.append(el('button', { class: 'sec sm', text: '← Şirkətlər', style: 'margin-bottom:12px', onclick: () => { openId = null; tab = 'companies'; reload(); } }));
+    const holder = el('div', {}, el('div', { class: 'card mute', text: 'Yüklənir…' })); v.append(holder);
+    const r = await api('info', { id });
+    if (openId !== id) return;
+    holder.textContent = '';
+    if (!r.ok) { holder.append(el('div', { class: 'card err', text: msg(r.error) })); return; }
+    const I = r.data, c = I.company, L = I.license, live = I.live && !I.live.error ? I.live : null, u = live ? live.usage : (c.stats && c.stats.usage) || {};
+    const ramMax = D.config.planRam[c.webPlan];
 
-  $('d-go').onclick = async () => {
-    $('d-go').disabled = true; $('d-out').textContent = '';
-    try {
-      const r = await api('addDomain', { id: current, domain: $('d-name').value });
-      if (!r.ok) { $('d-out').append(el('div', { class: 'err', text: msg(r.error) })); return; }
-      const x = r.data.dns;
-      $('d-out').append(el('div', { class: 'okmsg', text: 'Domen Render-ə əlavə olundu. İndi domen qeydiyyatçısının DNS panelində bu qeydi yazın:' }),
-        el('dl', { class: 'kv', style: 'margin-top:8px' },
-          el('dt', { text: 'Tip' }), el('dd', {}, el('span', { class: 'mono', text: x.type })),
-          el('dt', { text: 'Ad (Host)' }), el('dd', {}, el('span', { class: 'mono', text: x.name })),
-          el('dt', { text: 'Dəyər' }), el('dd', {}, el('span', { class: 'mono', text: x.value }), ' ', copyBtn(x.value))),
-        el('p', { class: 'note', text: 'DNS yayılması 5–30 dəq çəkir. Render sonra SSL sertifikatını özü verir. Statusu bu səhifədə "Domenlər" sətrində görəcəksiniz.' }));
-    } finally { $('d-go').disabled = false; }
-  };
+    // map
+    const domainsTxt = I.domains.length ? I.domains.map(d => d.name + (d.dnsOk ? ' ✓' : ' (DNS gözlənilir)')).join(', ') : 'yoxdur';
+    holder.append(el('div', { class: 'card' },
+      el('div', { class: 'li-top' }, el('h2', { text: c.name, style: 'margin:0' }), el('span', {}, c.disabled ? el('span', { class: 'badge bad', text: 'Bloklanıb' }) : '', ' ', status(c.status))),
+      c.status !== 'ready' ? el('p', { class: 'note', text: c.step }) : '', c.error ? el('p', { class: 'err', text: c.error }) : '',
+      c.status === 'failed' ? el('button', { class: 'block', text: 'Quraşdırmanı davam etdir', onclick: async () => { const x = await api('retry', { id }); if (!x.ok) alert(msg(x.error)); else render(); } }) : '',
+      el('h3', { text: 'Xəritə' }),
+      el('div', { class: 'flow' },
+        el('div', { class: 'step' }, el('b', { text: 'Şirkət' }), el('div', {}, c.name + ' · ' + c.slug)),
+        el('div', { class: 'arrow', text: '↓' }),
+        el('div', { class: 'step' }, el('b', { text: 'Server' }), el('div', {}, link(c.url), el('div', { class: 'sub', text: c.webPlan + ' · ' + c.region + ' · deploy: ' + (I.deploy ? (I.deploy.error || I.deploy.status) : '—') }))),
+        el('div', { class: 'arrow', text: '↓' }),
+        el('div', { class: 'step' }, el('b', { text: 'Baza' }), el('div', {}, (I.db && !I.db.error ? I.db.plan + ' · ' + I.db.status : (c.dbPlan || '—')) + (live ? ' · ' + fmtBytes(live.db.sizeBytes) : ''))),
+        el('div', { class: 'arrow', text: '↓' }),
+        el('div', { class: 'step' }, el('b', { text: 'Domen' }), el('div', { text: domainsTxt })),
+        el('div', { class: 'arrow', text: '↓' }),
+        el('div', { class: 'step' }, el('b', { text: 'Lisenziya' }), el('div', { text: (L.package || 'paketsiz') + ' · rəis ' + lim(L.maxForemen) + ' · usta ' + lim(L.maxWorkers) + ' · usta/rəis ' + lim(L.maxWorkersPerForeman) })),
+        el('div', { class: 'arrow', text: '↓' }),
+        el('div', { class: 'step' }, el('b', { text: 'Son tarixlər' }), el('div', {}, 'Lisenziya: ', daysBadge(c.licenseDaysLeft, c.licenseUntil), I.domains.map(d => el('div', {}, d.name + ': ', daysBadge(d.daysLeft, d.expires)))))),
+      I.live && I.live.error ? el('p', { class: 'note bad', text: 'Server ilə əlaqə yoxdur: ' + I.live.error + (c.webPlan === 'free' ? ' (pulsuz server yatmış ola bilər)' : '') }) : ''));
 
-  show('v-login');
+    // license
+    const lf = { pkg: sel(pkgOptions(), c.packageId || ''), until: inp({ type: 'date', value: c.licenseUntil || '' }), dis: inp({ type: 'checkbox' }),
+      mf: inp({ type: 'number', min: 0, value: c.overrides.maxForemen ?? '', placeholder: 'paketdən' }), mw: inp({ type: 'number', min: 0, value: c.overrides.maxWorkers ?? '', placeholder: 'paketdən' }),
+      mwf: inp({ type: 'number', min: 0, value: c.overrides.maxWorkersPerForeman ?? '', placeholder: 'paketdən' }), price: inp({ type: 'number', min: 0, step: '0.01', value: c.monthlyPrice ?? '' }), cur: sel(D.config.currencies, c.currency), email: inp({ type: 'email', value: c.adminEmail || '' }) };
+    lf.dis.checked = !!c.disabled;
+    const lmsg = el('div');
+    holder.append(el('div', { class: 'card' }, el('h2', { text: 'Lisenziya' }),
+      meter('Sahə rəisi (aktiv)', u.foremen, L.maxForemen), meter('Usta (aktiv)', u.workers, L.maxWorkers), meter('Ən çox usta bir rəisdə', u.maxWorkersInOneForeman, L.maxWorkersPerForeman),
+      el('p', { class: 'note', text: 'Deaktiv: ' + (u.foremenInactive ?? '?') + ' rəis, ' + (u.workersInactive ?? '?') + ' usta — lisenziyaya düşmür. Admin: ' + (u.admins ?? '?') + '.' }),
+      el('div', { class: 'row' }, field('Paket', lf.pkg), field('Son tarix', lf.until)),
+      el('h3', { text: 'Bu şirkət üçün fərqli limit (boş = paketdən)' }),
+      el('div', { class: 'row' }, field('Sahə rəisi', lf.mf), field('Usta (cəmi)', lf.mw), field('Usta / rəis', lf.mwf)),
+      el('div', { class: 'row' }, field('Aylıq məbləğ', lf.price), field('Valyuta', lf.cur)), field('Admin e-poçtu (xatırlatmalar)', lf.email),
+      el('label', { style: 'display:flex;gap:8px;align-items:center;color:var(--ink);font-size:14px;margin-top:12px' }, lf.dis, 'Şirkəti indi blokla (data saxlanılır)'),
+      el('button', { class: 'block', text: 'Yadda saxla və şirkətə göndər', onclick: async ev => {
+        ev.target.disabled = true;
+        const x = await api('saveCompany', { id, packageId: lf.pkg.value, licenseUntil: lf.until.value, disabled: lf.dis.checked, overrides: { maxForemen: lf.mf.value, maxWorkers: lf.mw.value, maxWorkersPerForeman: lf.mwf.value }, monthlyPrice: lf.price.value, currency: lf.cur.value, adminEmail: lf.email.value });
+        ev.target.disabled = false;
+        if (!x.ok) return out(lmsg, false, msg(x.error));
+        out(lmsg, x.data.synced, x.data.synced ? 'Saxlanıldı və şirkətin serverinə göndərildi.' : 'Saxlanıldı, amma server cavab vermədi: ' + x.data.error + '. Hər saat yenidən göndəriləcək.');
+      } }), lmsg));
+
+    // payments
+    const pf = { amount: inp({ type: 'number', min: 0, step: '0.01', value: c.monthlyPrice ?? '' }), cur: sel(D.config.currencies, c.currency), paid: inp({ type: 'date', value: D.config.today }), until: inp({ type: 'date' }), note: inp({ maxlength: 300 }) };
+    const pmsg = el('div');
+    const ptable = el('table', {}, el('tr', {}, el('th', { text: 'Tarix' }), el('th', { text: 'Məbləğ' }), el('th', { text: 'Nə vaxta qədər' }), el('th', { text: 'Qeyd' }), el('th')));
+    I.payments.forEach(p => ptable.append(el('tr', {}, el('td', { text: p.paidAt }), el('td', { text: money(p.amount, p.currency) }), el('td', { text: p.until || '—' }), el('td', { text: p.note }),
+      el('td', {}, el('button', { class: 'sec sm', text: 'Sil', onclick: async () => { if (confirm('Ödəniş silinsin? Lisenziya tarixi dəyişmir.')) { await api('deletePayment', { paymentId: p.id }); render(); } } })))));
+    holder.append(el('div', { class: 'card' }, el('h2', { text: 'Ödənişlər' }), I.payments.length ? ptable : el('p', { class: 'mute', text: 'Ödəniş yoxdur.' }),
+      el('h3', { text: 'Ödəniş əlavə et' }),
+      el('div', { class: 'row' }, field('Məbləğ', pf.amount), field('Valyuta', pf.cur)), el('div', { class: 'row' }, field('Ödəniş tarixi', pf.paid), field('Lisenziya nə vaxta qədər uzansın', pf.until)), field('Qeyd', pf.note),
+      el('button', { class: 'block', text: 'Əlavə et', onclick: async ev => {
+        ev.target.disabled = true; const x = await api('addPayment', { id, amount: pf.amount.value, currency: pf.cur.value, paidAt: pf.paid.value, until: pf.until.value, note: pf.note.value }); ev.target.disabled = false;
+        if (!x.ok) return out(pmsg, false, msg(x.error)); render();
+      } }), pmsg));
+
+    // domains
+    const dbox = el('div', { class: 'card' }, el('h2', { text: 'Domenlər' }));
+    I.domains.forEach(d => dbox.append(domainCard(d, c)));
+    const dn = inp({ placeholder: 'app.sirket.az' }), dmsg = el('div');
+    dbox.append(el('h3', { text: 'Domen əlavə et' }), dn, el('button', { class: 'block', text: 'Əlavə et və DNS-i yoxla', onclick: async ev => {
+      ev.target.disabled = true; const x = await api('addDomain', { id, domain: dn.value }); ev.target.disabled = false;
+      if (!x.ok) return out(dmsg, false, msg(x.error)); render();
+    } }), el('p', { class: 'note', text: 'Domen Render-ə avtomatik əlavə olunur. DNS-də nə yazmaq lazım olduğunu panel göstərir və hər 10 dəqiqədən bir yoxlayır. DNS düzgün olanda Render SSL verir.' }), dmsg);
+    holder.append(dbox);
+
+    // admin
+    const rp = inp({ inputmode: 'numeric', value: c.adminPhone }), rmsg = el('div');
+    holder.append(el('div', { class: 'card' }, el('h2', { text: 'Şirkətin admini' }),
+      kv([['Telefon', el('span', { class: 'secret' }, el('span', { class: 'mono', text: c.adminPhone }), copyBtn(c.adminPhone))], ['Müvəqqəti şifrə', secret(c.adminPassword)]]),
+      el('p', { class: 'note', text: 'Şifrə müvəqqətidir: admin ilk girişdə öz şifrəsini yaradır. Sıfırlama şirkətin jurnalında görünmür.' }),
+      field('Admin telefonu', rp),
+      el('button', { class: 'block warn', text: 'Yeni müvəqqəti şifrə yarat', onclick: async ev => {
+        if (!confirm('Adminin şifrəsi sıfırlansın? Onun bütün sessiyaları bağlanacaq.')) return;
+        ev.target.disabled = true; const x = await api('resetAdmin', { id, adminPhone: rp.value }); ev.target.disabled = false;
+        if (!x.ok) return out(rmsg, false, msg(x.error));
+        rmsg.textContent = ''; rmsg.append(el('div', { class: 'msg ok' }, 'Hazırdır. Telefon: ', el('span', { class: 'mono', text: x.data.adminPhone }), ' · Şifrə: ', secret(x.data.adminPassword)));
+      } }), rmsg));
+
+    // tech
+    const notes = el('textarea', { rows: 3, maxlength: 2000 }); notes.value = c.notes || '';
+    holder.append(el('div', { class: 'card' }, el('h2', { text: 'Texniki' }),
+      kv([
+        ['Versiya', live ? live.version : '—'],
+        ['DB həcmi', live ? fmtBytes(live.db.sizeBytes) + (I.db && I.db.diskGb ? ' / ' + I.db.diskGb + ' GB disk' : '') : '—'],
+        ['Sətir / fayl', live ? live.db.rows + ' sətir · ' + live.db.files + ' fayl (' + fmtBytes(live.db.filesBytes) + ')' : '—'],
+        ['RAM (server)', live ? fmtBytes(live.memory.rssBytes) + (ramMax ? ' / ' + ramMax + ' MB' : '') : '—'],
+        ['Baza RAM (plan)', D.config.planRam[c.dbPlan] ? D.config.planRam[c.dbPlan] + ' MB' : '—'],
+        ['İşləmə müddəti', live ? Math.round(live.uptimeSec / 3600) + ' saat' : '—'],
+        ['Statistika', c.statsAt ? String(c.statsAt).slice(0, 16).replace('T', ' ') : '—'],
+        ['Baza bitir', I.db && I.db.expiresAt ? String(I.db.expiresAt).slice(0, 10) : '—'],
+        ['Daxili DB URL', I.db && !I.db.error ? secret(I.db.internal) : (I.db && I.db.error) || '—'],
+        ['Xarici DB URL', I.db && !I.db.error ? secret(I.db.external) : '—'],
+        ['Render server', link(c.renderService, 'Panelda aç')], ['Render baza', link(c.renderDb, 'Panelda aç')],
+        ['Xidmət səhifəsi', c.url ? link(c.url + '/admin') : '—']
+      ]),
+      el('p', { class: 'note', text: 'RAM və CPU qrafikləri ödənişli Render planında əlavə olunacaq.' }),
+      field('Qeydlər (yalnız sizə görünür)', notes),
+      el('button', { class: 'sec block', text: 'Qeydləri saxla', onclick: async ev => { ev.target.disabled = true; await api('saveCompany', { id, notes: notes.value }); ev.target.disabled = false; ev.target.textContent = 'Saxlanıldı'; } })));
+  }
+
+  function domainCard(d, c) {
+    const dnsx = d.dns || {}, want = dnsx.want;
+    const f = { reg: inp({ value: d.registrar || '', placeholder: 'Qeydiyyatçı' }), price: inp({ type: 'number', min: 0, step: '0.01', value: d.price ?? '' }), cur: sel(D.config.currencies, d.currency),
+      exp: inp({ type: 'date', value: d.expires || '' }), payer: sel([['me', 'Mən'], ['company', 'Şirkət']], d.payer), note: inp({ value: d.note || '' }) };
+    const m = el('div');
+    return el('div', { class: 'card', style: 'background:var(--code)' },
+      el('div', { class: 'li-top' }, el('b', { text: d.name }), el('span', {}, el('span', { class: 'badge ' + (d.dnsOk ? 'ok' : 'pend'), text: d.dnsOk ? 'DNS düzgün' : 'DNS gözlənilir' }), ' ',
+        el('span', { class: 'badge ' + (d.renderStatus === 'verified' ? 'ok' : 'pend'), text: 'Render: ' + (d.renderStatus || '—') }))),
+      kv([
+        ['DNS provayder', dnsx.provider || (dnsx.nsError ? 'tapılmadı (' + dnsx.nsError + ')' : '—')],
+        ['İndi', (dnsx.cname && dnsx.cname.length ? 'CNAME ' + dnsx.cname.join(', ') : '') + (dnsx.a && dnsx.a.length ? ' A ' + dnsx.a.join(', ') : '') || 'qeyd yoxdur'],
+        ['Yazmaq lazımdır', want ? el('span', {}, el('span', { class: 'mono', text: want.type + '  ' + want.name + '  →  ' + want.value }), ' ', copyBtn(want.value)) : '—'],
+        ['Son tarix', el('span', {}, daysBadge(d.daysLeft, d.expires), d.expiresSource === 'rdap' ? el('span', { class: 'sub', text: ' (avtomatik)' }) : '')],
+        ['Yoxlanıb', d.checkedAt ? String(d.checkedAt).slice(0, 16).replace('T', ' ') : '—']
+      ]),
+      el('div', { class: 'row' }, field('Qeydiyyatçı', f.reg), field('Ödəyən', f.payer)),
+      el('div', { class: 'row' }, field('İllik məbləğ', f.price), field('Valyuta', f.cur), field('Son tarix', f.exp)), field('Qeyd', f.note),
+      el('div', { class: 'row', style: 'margin-top:10px' },
+        el('button', { class: 'sm', text: 'Saxla', onclick: async () => { const x = await api('saveDomain', { domainId: d.id, registrar: f.reg.value, price: f.price.value, currency: f.cur.value, expires: f.exp.value, payer: f.payer.value, note: f.note.value }); out(m, x.ok, x.ok ? 'Saxlanıldı.' : msg(x.error)); } }),
+        el('button', { class: 'sec sm', text: 'İndi yoxla', onclick: async () => { const x = await api('checkDomain', { domainId: d.id }); if (!x.ok) return out(m, false, msg(x.error)); render(); } }),
+        el('button', { class: 'sec sm', text: 'Sil', onclick: async () => { if (!confirm(d.name + ' silinsin? Render-dən də çıxarılacaq.')) return; const x = await api('removeDomain', { domainId: d.id }); if (!x.ok) return out(m, false, msg(x.error)); render(); } })), m);
+  }
+
+  // ================= packages
+  function renderPackages(v) {
+    const t = el('table', {}, el('tr', {}, ['Paket', 'Rəis', 'Usta', 'Usta/rəis', 'Qiymət', 'Şirkət', ''].map(h => el('th', { text: h }))));
+    D.packages.forEach(p => t.append(el('tr', {}, el('td', {}, el('b', { text: p.name }), el('div', { class: 'sub', text: p.note })), el('td', { text: lim(p.maxForemen) }), el('td', { text: lim(p.maxWorkers) }), el('td', { text: lim(p.maxWorkersPerForeman) }),
+      el('td', { text: money(p.price, p.currency) }), el('td', { text: String(p.used) }), el('td', {}, el('button', { class: 'sec sm', text: 'Dəyiş', onclick: () => pkgForm(v, p) })))));
+    v.append(el('div', { class: 'card' }, el('h2', { text: 'Paketlər' }), t, el('p', { class: 'note', text: 'Boş limit = limitsiz. Paketi dəyişəndə bütün şirkətlərinə dərhal göndərilir. Deaktiv istifadəçilər sayılmır.' }),
+      el('button', { class: 'block', text: '+ Yeni paket', onclick: () => pkgForm(v, null) })));
+  }
+  function pkgForm(v, p) {
+    v.textContent = '';
+    const f = { name: inp({ value: p ? p.name : '', maxlength: 40 }), mf: inp({ type: 'number', min: 0, value: p ? p.maxForemen ?? '' : '' }), mw: inp({ type: 'number', min: 0, value: p ? p.maxWorkers ?? '' : '' }), mwf: inp({ type: 'number', min: 0, value: p ? p.maxWorkersPerForeman ?? '' : '' }),
+      price: inp({ type: 'number', min: 0, step: '0.01', value: p ? p.price : 0 }), cur: sel(D.config.currencies, p ? p.currency : 'AZN'), note: inp({ value: p ? p.note : '' }) };
+    const m = el('div');
+    v.append(el('div', { class: 'card' }, el('h2', { text: p ? 'Paket: ' + p.name : 'Yeni paket' }), field('Ad', f.name),
+      el('div', { class: 'row' }, field('Sahə rəisi', f.mf), field('Usta (cəmi)', f.mw), field('Usta / rəis', f.mwf)),
+      el('div', { class: 'row' }, field('Aylıq qiymət', f.price), field('Valyuta', f.cur)), field('Qeyd', f.note),
+      el('div', { class: 'row', style: 'margin-top:12px' },
+        el('button', { class: 'sec', text: 'Ləğv et', onclick: render }),
+        p && !p.used ? el('button', { class: 'warn', text: 'Sil', onclick: async () => { if (!confirm('Paket silinsin?')) return; const x = await api('deletePackage', { id: p.id }); if (!x.ok) return out(m, false, msg(x.error)); await reload(); } }) : '',
+        el('button', { text: 'Saxla', onclick: async () => {
+          const x = await api('savePackage', { id: p ? p.id : 0, name: f.name.value, maxForemen: f.mf.value, maxWorkers: f.mw.value, maxWorkersPerForeman: f.mwf.value, price: f.price.value, currency: f.cur.value, note: f.note.value });
+          if (!x.ok) return out(m, false, msg(x.error));
+          if (x.data.failed) alert('Saxlanıldı. ' + x.data.failed + ' şirkətə göndərilmədi (hər saat yenidən cəhd olunur).');
+          await reload();
+        } })), m));
+  }
+
+  // ================= domains (all)
+  function renderDomains(v) {
+    const list = D.domains.slice().sort((a, b) => (a.expires || '9999') .localeCompare(b.expires || '9999'));
+    const t = el('table', {}, el('tr', {}, ['Domen', 'Şirkət', 'Son tarix', 'Məbləğ', 'Ödəyən', 'DNS'].map(h => el('th', { text: h }))));
+    list.forEach(d => t.append(el('tr', { style: 'cursor:pointer', onclick: () => { openId = d.companyId; render(); } },
+      el('td', { text: d.name }), el('td', { text: d.company }), el('td', {}, daysBadge(d.daysLeft, d.expires)), el('td', { text: money(d.price, d.currency) }),
+      el('td', { text: d.payer === 'company' ? 'Şirkət' : 'Mən' }), el('td', {}, el('span', { class: 'badge ' + (d.dnsOk ? 'ok' : 'pend'), text: d.dnsOk ? '✓' : '…' })))));
+    const total = {}; list.filter(d => d.payer !== 'company' && d.price).forEach(d => { total[d.currency] = (total[d.currency] || 0) + d.price; });
+    v.append(el('div', { class: 'card' }, el('h2', { text: 'Bütün domenlər' }), list.length ? t : el('p', { class: 'mute', text: 'Domen yoxdur.' }),
+      el('p', { class: 'note', text: 'Sizin illik domen xərciniz: ' + (Object.keys(total).map(k => total[k].toFixed(2) + ' ' + k).join(', ') || '—') + '. Domen əlavə etmək üçün şirkətin səhifəsini açın.' })));
+  }
+
+  // ================= journal
+  async function renderJournal(v) {
+    const box = el('div', { class: 'card' }, el('h2', { text: 'Superadmin jurnalı' }), el('p', { class: 'mute', text: 'Yüklənir…' })); v.append(box);
+    const r = await api('journal'); box.lastChild.remove();
+    if (!r.ok) return box.append(el('p', { class: 'err', text: msg(r.error) }));
+    const t = el('table', {}, el('tr', {}, ['Vaxt', 'Əməliyyat', 'Obyekt', 'IP'].map(h => el('th', { text: h }))));
+    r.data.rows.forEach(x => t.append(el('tr', {}, el('td', { text: new Date(x.ts).toLocaleString('az') }), el('td', { text: x.action }), el('td', { text: x.target }), el('td', { class: 'sub', text: x.ip }))));
+    box.append(t, el('p', { class: 'note', text: 'Bu jurnal yalnız sizə görünür. Şirkətlərin jurnalına superadmin əməliyyatları yazılmır.' }));
+  }
+
+  // ================= settings
+  function renderSettings(v) {
+    const C = D.config, ok = (b, t) => el('span', { class: 'badge ' + (b ? 'ok' : 'bad'), text: b ? 'qurulub' : t || 'yoxdur' });
+    const to = inp({ type: 'email', value: C.superEmail }), m = el('div');
+    v.append(el('div', { class: 'card' }, el('h2', { text: 'Ayarlar' }),
+      kv([['Render API', ok(C.api)], ['E-poçt (Resend)', ok(C.mail)], ['Sizin e-poçt', C.superEmail || el('span', { class: 'bad', text: 'SUPERADMIN_EMAIL yoxdur' })], ['Repo / branch', C.repo + ' · ' + C.branch], ['Region', C.region]]),
+      el('p', { class: 'note', text: 'Bu dəyərlər idarəetmə serverinin Render Environment bölməsində saxlanır: RENDER_API_KEY, RENDER_OWNER_ID, RESEND_API_KEY, MAIL_FROM, SUPERADMIN_EMAIL.' }),
+      el('h3', { text: 'Test məktubu' }), to, el('button', { class: 'block sec', text: 'Göndər', disabled: !C.mail, onclick: async () => { const x = await api('testMail', { to: to.value }); out(m, x.ok, x.ok ? 'Göndərildi.' : msg(x.error)); } }), m,
+      el('h3', { text: 'Xatırlatmalar' }),
+      el('p', { class: 'note', text: 'Hər gün 09:00-dan sonra: lisenziyanın bitməsinə 30, 7, 1 gün qalanda və bitdiyi gün — şirkətin adminə və sizə. Domenin bitməsinə 30, 7, 1 gün qalanda — yalnız sizə.' })));
+  }
+
+  showLogin();
 })();
 </script>
 </body>

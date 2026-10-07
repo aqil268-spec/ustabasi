@@ -47,20 +47,28 @@ Apps Script-dəki `setAdminLogin` əvəzinə:
 Server başlayanda admin girişini bir dəfə yazır, bütün admin sessiyalarını bağlayır. İlk girişdə yeni şifrə tələb olunur.
 Eyni söz ilə təkrar deploy sıfırlamanı təkrarlamır.
 
-## Superadmin paneli (`/super`) — çox şirkət
+## İdarəetmə serveri və superadmin paneli (`control-server.js`)
 
-Yalnız `SUPERADMIN_PASSWORD` olan serverdə işləyir (idarəetmə serveri). Şirkət serverlərində bu dəyişən yoxdur — onlarda `/super` 404 verir və superadmin haqqında heç nə yoxdur.
+Ayrıca Render servisi (`master-control`), öz bazası ilə. Şirkətlərin datası orada yoxdur.
+Start: `node server/node/control-server.js`. Panel: `https://<control>/`.
 
 | Dəyişən | Təyinat |
 | --- | --- |
-| `SUPERADMIN_PASSWORD` | Panel şifrəsi |
-| `RENDER_API_KEY` | Render → Account Settings → API Keys |
-| `RENDER_OWNER_ID` | Render workspace id (`tea-…`) |
-| `COMPANY_BRANCH` | Şirkət serverlərinin branch-ı (standart: `node-server`) |
+| `DATABASE_URL` | İdarəetmə bazası |
+| `SUPERADMIN_PASSWORD` | Panel şifrəsi (12+ simvol) |
+| `CONTROL_SECRET` | 2FA açarını şifrələyir |
+| `RENDER_API_KEY`, `RENDER_OWNER_ID` | Render API |
+| `RESEND_API_KEY`, `MAIL_FROM`, `SUPERADMIN_EMAIL` | E-poçt xatırlatmaları |
+| `SUPERADMIN_2FA_RESET` | Telefon itəndə: yeni söz yazıb deploy edin — 2FA yenidən qurulur |
 
-"Şirkət yarat" hər şirkət üçün Render-də 1 PostgreSQL və 1 server yaradır. Server tətbiqi özü verir (`SERVE_APP=1`): tətbiq `https://<server>/`, API `https://<server>/api`, xidmət səhifəsi `/admin`.
-Panel: şirkətin admin girişi, baza URL-ləri, deploy statusu, admin şifrəsini sıfırlamaq, domen bağlamaq, bütün şirkətləri yeniləmək.
-Şirkətlərin siyahısı idarəetmə serverinin bazasında (`ctl_companies`) saxlanır.
+Panel: şirkət xəritəsi (şirkət → server → baza → domen → lisenziya → son tarixlər), şirkət yaratmaq və mövcud serveri qoşmaq,
+paketlər (sahə rəisi, usta, usta/rəis limitləri), şirkət üçün fərqli limit, lisenziya son tarixi və bloklama, ödənişlər,
+domenlər (Render-ə əlavə, DNS yoxlaması, RDAP ilə son tarix, qeydiyyatçı/məbləğ/ödəyən), admin şifrəsini sıfırlamaq,
+DB həcmi və RAM, superadmin jurnalı, e-poçt xatırlatmaları (lisenziya: 30/7/1/0 gün, domen: 30/7/1 gün). Giriş: şifrə + Google Authenticator.
+
+**Şirkət serveri ilə əlaqə:** gizli, imzalı kanal `/_ctl/*` (HMAC-SHA256, şirkətə xas `CONTROL_KEY`). Superadmin şirkətin
+istifadəçilərində və jurnalında yoxdur. Lisenziya şirkət serverində məcburidir: limitlər Ayarlardan dəyişdirilmir,
+deaktiv istifadəçilər sayılmır, müddət bitəndə və ya bloklananda API `license_expired` qaytarır (data silinmir).
 
 ## Lokal işə salmaq
 
